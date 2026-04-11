@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- This tells the browser: "this site can be installed as an app" -->
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Theme color: the color that shows in the phone's status bar when the app is open -->
+  <meta name="theme-color" content="#F7931A">
+
+  <!-- Apple-specific tags: iOS Safari needs these since it doesn't fully support manifest.json -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ABitcoinConsult">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <title>A Bitcoin Consult</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="logo">A Bitcoin Consult</h1>
+      <p class="tagline">The signal. Not the noise.</p>
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main">
+
+    <!-- Hero section: first thing visitors see -->
+    <section class="hero">
+      <h2>Your daily Bitcoin briefing</h2>
+      <p>
+        I scroll crypto Twitter so you don't have to. Get the 1–2 tweets
+        worth reading each day — delivered straight to your phone.
+      </p>
+    </section>
+
+    <!-- How it works -->
+    <section class="how-it-works">
+      <h3>How it works</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <p><strong>Install the app</strong><br>Tap the button below. It takes 5 seconds, no app store needed.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <p><strong>Allow notifications</strong><br>Say yes when your phone asks. This is how I'll reach you.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <p><strong>Get the signal</strong><br>Once a day, you'll get a curated tweet screenshot with my quick take.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install button (this is the main call to action) -->
+    <section class="cta-section">
+      <!-- This button triggers the PWA install prompt. It's hidden by default
+           and only shows when the browser says "this site is installable." -->
+      <button id="install-btn" class="btn-install" style="display: none;">
+        Install A Bitcoin Consult
+      </button>
+
+      <!-- Notification button: asks permission to send push notifications -->
+      <button id="notify-btn" class="btn-notify" style="display: none;">
+        Turn on notifications
+      </button>
+
+      <!-- Fallback message for when the app is already installed -->
+      <p id="installed-msg" class="installed-msg" style="display: none;">
+        You're all set! Notifications are on.
+      </p>
+    </section>
+
+    <!-- Newsletter signup teaser (Mailchimp form will go here on Day 6) -->
+    <section class="newsletter-teaser">
+      <h3>Prefer email?</h3>
+      <p>
+        Get the weekly digest every Sunday — all the best tweets from the week,
+        plus what they mean for the week ahead.
+      </p>
+      <p class="coming-soon">Newsletter signup coming soon.</p>
+    </section>
+
+    <!-- Content feed: this is where daily posts will appear (Day 4 builds this out) -->
+    <section class="feed" id="feed">
+      <h3>Latest</h3>
+      <div class="feed-empty">
+        <p>First post drops soon. Stay tuned.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <p>&copy; 2026 A Bitcoin Consult &middot; abitcoinconsult.com</p>
+  </footer>
+
+  <!-- ===== JAVASCRIPT ===== -->
+  <script>
+    // -------------------------------------------------------
+    // SERVICE WORKER REGISTRATION
+    // -------------------------------------------------------
+    // This is the first thing that runs. It tells the browser:
+    // "Hey, there's a service worker file at /sw.js — please
+    // install it." The service worker is what enables offline
+    // support and push notifications.
+    //
+    // "serviceWorker" in navigator is a safety check — it makes
+    // sure the browser supports service workers before we try.
+    // All modern browsers do, but older ones don't.
+    // -------------------------------------------------------
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(function(registration) {
+          console.log('Service worker registered:', registration.scope);
+        })
+        .catch(function(error) {
+          console.error('Service worker registration failed:', error);
+        });
+    }
+
+    // -------------------------------------------------------
+    // PWA INSTALL PROMPT
+    // -------------------------------------------------------
+    // When the browser detects that your site qualifies as a
+    // PWA (has a manifest, service worker, HTTPS), it fires a
+    // special event called "beforeinstallprompt." We catch that
+    // event, save it, and show our custom install button.
+    //
+    // Without this code, the browser might show its own generic
+    // "Add to Home Screen" banner, or nothing at all. This way
+    // WE control when and how the install prompt appears.
+    // -------------------------------------------------------
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', function(e) {
+      // Prevent the browser's default mini-infobar
+      e.preventDefault();
+      // Save the event so we can trigger it later
+      deferredPrompt = e;
+      // Now show our install button
+      document.getElementById('install-btn').style.display = 'block';
+    });
+
+    document.getElementById('install-btn').addEventListener('click', function() {
+      if (!deferredPrompt) return;
+      // This triggers the actual browser install dialog
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(result) {
+        if (result.outcome === 'accepted') {
+          console.log('User installed the PWA');
+          document.getElementById('install-btn').style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    });
+
+    // If the app is already installed, hide the install button
+    window.addEventListener('appinstalled', function() {
+      document.getElementById('install-btn').style.display = 'none';
+      console.log('PWA was installed');
+    });
+
+    // -------------------------------------------------------
+    // NOTIFICATION PERMISSION
+    // -------------------------------------------------------
+    // This is a placeholder for Day 2. Right now it just asks
+    // for notification permission. On Day 2, we'll connect it
+    // to Firebase Cloud Messaging to actually send/receive
+    // push notifications.
+    // -------------------------------------------------------
+    if ('Notification' in window && 'serviceWorker' in navigator) {
+      var notifyBtn = document.getElementById('notify-btn');
+      var installedMsg = document.getElementById('installed-msg');
+
+      if (Notification.permission === 'granted') {
+        // Already have permission
+        installedMsg.style.display = 'block';
+      } else if (Notification.permission !== 'denied') {
+        // Haven't asked yet — show the button
+        notifyBtn.style.display = 'block';
+      }
+
+      notifyBtn.addEventListener('click', function() {
+        Notification.requestPermission().then(function(permission) {
+          if (permission === 'granted') {
+            notifyBtn.style.display = 'none';
+            installedMsg.style.display = 'block';
+            console.log('Notification permission granted');
+            // Day 2: Firebase token registration will go here
+          }
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>

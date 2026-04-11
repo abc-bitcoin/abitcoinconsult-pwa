@@ -1,0 +1,293 @@
+/* ============================================================
+   A BITCOIN CONSULT — Stylesheet
+   ============================================================
+   Color palette:
+   - Background (dark):  #1a1a2e  (deep navy-black)
+   - Surface (cards):    #16213e  (slightly lighter)
+   - Accent:             #F7931A  (Bitcoin orange)
+   - Text primary:       #e0e0e0  (light gray)
+   - Text secondary:     #a0a0b0  (muted gray)
+   ============================================================ */
+
+/* --- RESET & BASE --- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  background-color: #1a1a2e;
+  color: #e0e0e0;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- HEADER --- */
+.header {
+  background-color: #16213e;
+  border-bottom: 2px solid #F7931A;
+  padding: 1.25rem 1rem;
+  text-align: center;
+}
+
+.header-inner {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #F7931A;
+  letter-spacing: 0.5px;
+}
+
+.tagline {
+  font-size: 0.875rem;
+  color: #a0a0b0;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* --- MAIN CONTENT --- */
+.main {
+  flex: 1;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  width: 100%;
+}
+
+/* --- HERO --- */
+.hero {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.hero h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.75rem;
+}
+
+.hero p {
+  font-size: 1.05rem;
+  color: #a0a0b0;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* --- HOW IT WORKS --- */
+.how-it-works {
+  margin-bottom: 2.5rem;
+}
+
+.how-it-works h3 {
+  font-size: 1.1rem;
+  color: #F7931A;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background-color: #16213e;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border-left: 3px solid #F7931A;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  background-color: #F7931A;
+  color: #1a1a2e;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.step p {
+  font-size: 0.95rem;
+  color: #c0c0d0;
+}
+
+.step strong {
+  color: #ffffff;
+}
+
+/* --- CTA BUTTONS --- */
+.cta-section {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.btn-install,
+.btn-notify {
+  display: inline-block;
+  padding: 0.9rem 2rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  margin: 0.5rem;
+}
+
+.btn-install {
+  background-color: #F7931A;
+  color: #1a1a2e;
+}
+
+.btn-install:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(247, 147, 26, 0.4);
+}
+
+.btn-notify {
+  background-color: transparent;
+  color: #F7931A;
+  border: 2px solid #F7931A;
+}
+
+.btn-notify:hover {
+  background-color: rgba(247, 147, 26, 0.1);
+  transform: translateY(-1px);
+}
+
+.installed-msg {
+  color: #4ade80;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* --- NEWSLETTER TEASER --- */
+.newsletter-teaser {
+  background-color: #16213e;
+  padding: 1.5rem;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.newsletter-teaser h3 {
+  font-size: 1.15rem;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+}
+
+.newsletter-teaser p {
+  color: #a0a0b0;
+  font-size: 0.95rem;
+}
+
+.coming-soon {
+  margin-top: 0.75rem;
+  font-style: italic;
+  color: #F7931A !important;
+  font-size: 0.85rem !important;
+}
+
+/* --- CONTENT FEED --- */
+.feed {
+  margin-bottom: 2rem;
+}
+
+.feed h3 {
+  font-size: 1.1rem;
+  color: #F7931A;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+.feed-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  background-color: #16213e;
+  border-radius: 10px;
+  color: #a0a0b0;
+  font-style: italic;
+}
+
+/* --- POST CARD (used on Day 4 for content display) --- */
+.post-card {
+  background-color: #16213e;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(247, 147, 26, 0.15);
+}
+
+.post-card img {
+  width: 100%;
+  display: block;
+}
+
+.post-card .caption {
+  padding: 1rem 1.25rem;
+}
+
+.post-card .caption p {
+  font-size: 0.95rem;
+  color: #c0c0d0;
+}
+
+.post-card .post-date {
+  font-size: 0.8rem;
+  color: #a0a0b0;
+  margin-top: 0.5rem;
+}
+
+/* --- FOOTER --- */
+.footer {
+  text-align: center;
+  padding: 1.25rem 1rem;
+  border-top: 1px solid rgba(247, 147, 26, 0.2);
+  color: #a0a0b0;
+  font-size: 0.8rem;
+}
+
+/* --- RESPONSIVE --- */
+@media (min-width: 768px) {
+  .hero h2 {
+    font-size: 2.25rem;
+  }
+
+  .steps {
+    flex-direction: row;
+  }
+
+  .step {
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
