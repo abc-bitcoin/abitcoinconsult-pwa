@@ -2,28 +2,53 @@
 // SERVICE WORKER for A Bitcoin Consult
 // ============================================================
 //
-// WHAT IS A SERVICE WORKER?
-//
-// A service worker is a JavaScript file that the browser runs
-// in the background, separate from your webpage. Think of it
-// like a helpful middleman that sits between your app and the
-// internet. It can:
-//
-// 1. Cache files so the app loads even without internet
-// 2. Listen for push notifications (even when the app is closed)
-// 3. Decide what to do when the network is slow or down
-//
-// The browser installs it the first time someone visits your
-// site, and it stays active even after they close the tab.
-// That's what makes push notifications possible — this little
-// robot is always listening.
+// This service worker handles:
+// 1. Caching files for offline use
+// 2. Firebase Cloud Messaging (push notifications)
+// 3. Notification click handling
 //
 // ============================================================
+
+// Import Firebase Messaging SDK for background push handling
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+
+// Initialize Firebase in the service worker
+firebase.initializeApp({
+  apiKey: "AIzaSyBqI2Dt0gF-yYzNGt4jGSHE5zViMxF16Qc",
+  authDomain: "abitcoinconsult.firebaseapp.com",
+  projectId: "abitcoinconsult",
+  storageBucket: "abitcoinconsult.firebasestorage.app",
+  messagingSenderId: "215439248030",
+  appId: "1:215439248030:web:9325c57f72f64ecc33898f",
+  measurementId: "G-BFQD8QSRH5"
+});
+
+// Firebase messaging handles background push notifications
+// automatically when it detects a "notification" payload.
+// For custom "data-only" payloads, we handle them in the
+// push event listener below.
+var messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(function(payload) {
+  console.log('[Service Worker] Background message:', payload);
+  // If Firebase sends a data-only message (no "notification" key),
+  // we build the notification ourselves here.
+  var data = payload.data || {};
+  var title = data.title || 'A Bitcoin Consult';
+  var options = {
+    body: data.body || 'New transaction posted',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    data: { url: data.url || '/' }
+  };
+  return self.registration.showNotification(title, options);
+});
 
 // CACHE_NAME is like a label on a storage box. When we update
 // the site, we change this version number, which tells the
 // browser "throw out the old box, here's a new one."
-var CACHE_NAME = 'abc-cache-v1';
+var CACHE_NAME = 'abc-cache-v2';
 
 // These are the files we want to save for offline use.
 // When someone visits your site for the first time, the service
