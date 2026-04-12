@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin â A Bitcoin Consult</title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a14;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem;
+    }
+    h1 {
+      font-size: 1.4rem;
+      color: #F7931A;
+      margin-bottom: 0.3rem;
+    }
+    .subtitle {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 2rem;
+    }
+
+    /* Login form */
+    #login-section { display: block; }
+    #admin-section { display: none; }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+    }
+    input[type="password"],
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #12121e;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      margin-bottom: 1.2rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus {
+      border-color: #F7931A;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    /* File upload */
+    .upload-area {
+      border: 2px dashed #2a2a3a;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 1.2rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: #F7931A;
+      background: rgba(247, 147, 26, 0.05);
+    }
+    .upload-area.has-file {
+      border-color: #4caf50;
+      border-style: solid;
+    }
+    .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .upload-text { font-size: 0.85rem; color: #888; }
+    .upload-filename {
+      font-size: 0.85rem;
+      color: #F7931A;
+      margin-top: 0.5rem;
+    }
+    #file-input { display: none; }
+
+    /* Preview */
+    .preview-container {
+      margin-bottom: 1.2rem;
+      display: none;
+    }
+    .preview-container.visible { display: block; }
+    .preview-img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2a3a;
+    }
+
+    /* Buttons */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-orange {
+      background: linear-gradient(135deg, #F7931A, #e8850f);
+      color: #000;
+    }
+    .btn-green {
+      background: linear-gradient(135deg, #4caf50, #388e3c);
+      color: #fff;
+    }
+
+    /* Status */
+    .status {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .status.visible { display: block; }
+    .status.success { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+    .status.error { background: rgba(244, 67, 54, 0.15); color: #ef9a9a; }
+    .status.info { background: rgba(33, 150, 243, 0.15); color: #90caf9; }
+
+    /* Subscriber count */
+    .sub-count {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #1a1a2a;
+    }
+
+    /* History */
+    .history-title {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 2rem;
+      margin-bottom: 0.8rem;
+    }
+    .history-item {
+      background: #12121e;
+      border: 1px solid #1a1a2a;
+      border-radius: 8px;
+      padding: 0.8rem;
+      margin-bottom: 0.6rem;
+      font-size: 0.8rem;
+    }
+    .history-item .time { color: #666; font-size: 0.7rem; }
+    .history-item .caption { color: #ccc; margin-top: 0.3rem; }
+    .history-item .stats { color: #F7931A; font-size: 0.7rem; margin-top: 0.3rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>A Bitcoin Consult</h1>
+    <p class="subtitle">Admin Dashboard</p>
+
+    <!-- LOGIN -->
+    <div id="login-section">
+      <label for="password-input">Admin Password</label>
+      <input type="password" id="password-input" placeholder="Enter password..." autocomplete="current-password">
+      <button class="btn btn-orange" id="login-btn">Unlock</button>
+      <div class="status" id="login-status"></div>
+    </div>
+
+    <!-- ADMIN PANEL -->
+    <div id="admin-section">
+
+      <label>Tweet Screenshot</label>
+      <div class="upload-area" id="upload-area">
+        <div class="upload-icon">+</div>
+        <div class="upload-text">Tap to select or drag and drop</div>
+        <div class="upload-filename" id="upload-filename"></div>
+      </div>
+      <input type="file" id="file-input" accept="image/*">
+
+      <div class="preview-container" id="preview-container">
+        <img class="preview-img" id="preview-img" alt="Preview">
+      </div>
+
+      <label for="tweet-text">Tweet Text (paste from the screenshot)</label>
+      <textarea id="tweet-text" placeholder="Paste the tweet text here for AI caption generation..." style="min-height: 70px;"></textarea>
+      <button class="btn btn-orange" id="generate-btn" style="margin-bottom: 1.2rem;">Generate AI Caption</button>
+      <div class="status" id="generate-status"></div>
+
+      <label for="caption-input">Caption (edit or write your own)</label>
+      <textarea id="caption-input" placeholder="AI-generated caption will appear here, or write your own..."></textarea>
+
+      <button class="btn btn-green" id="send-btn">Send Notification</button>
+      <div class="status" id="send-status"></div>
+
+      <div class="sub-count" id="sub-count"></div>
+
+      <div class="history-title">Recent Sends</div>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var storedPassword = '';
+
+      // --- Login ---
+      var loginBtn = document.getElementById('login-btn');
+      var passwordInput = document.getElementById('password-input');
+      var loginStatus = document.getElementById('login-status');
+
+      function showStatus(el, msg, type) {
+        el.textContent = msg;
+        el.className = 'status visible ' + type;
+      }
+
+      // Allow Enter key on password field
+      passwordInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') loginBtn.click();
+      });
+
+      loginBtn.addEventListener('click', function() {
+        var pw = passwordInput.value.trim();
+        if (!pw) {
+          showStatus(loginStatus, 'Please enter a password.', 'error');
+          return;
+        }
+        // We don't verify the password here â the server verifies it
+        // when you try to send. We just store it for later.
+        storedPassword = pw;
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('admin-section').style.display = 'block';
+        showStatus(loginStatus, '', '');
+      });
+
+      // --- File Upload ---
+      var uploadArea = document.getElementById('upload-area');
+      var fileInput = document.getElementById('file-input');
+      var uploadFilename = document.getElementById('upload-filename');
+      var previewContainer = document.getElementById('preview-container');
+      var previewImg = document.getElementById('preview-img');
+      var selectedFile = null;
+
+      uploadArea.addEventListener('click', function() { fileInput.click(); });
+
+      uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+      });
+      uploadArea.addEventListener('dragleave', function() {
+        uploadArea.classList.remove('dragover');
+      });
+      uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+      });
+
+      fileInput.addEventListener('change', function() {
+        if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+      });
+
+      function handleFile(file) {
+        selectedFile = file;
+        uploadFilename.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+        uploadArea.classList.add('has-file');
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          previewImg.src = e.target.result;
+          previewContainer.classList.add('visible');
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // --- AI Caption Generation ---
+      var generateBtn = document.getElementById('generate-btn');
+      var tweetText = document.getElementById('tweet-text');
+      var generateStatus = document.getElementById('generate-status');
+
+      generateBtn.addEventListener('click', function() {
+        var text = tweetText.value.trim();
+        if (!text) {
+          showStatus(generateStatus, 'Paste the tweet text first.', 'error');
+          return;
+        }
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Generating...';
+        showStatus(generateStatus, 'Asking AI for a caption...', 'info');
+
+        fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tweet: text, password: storedPassword })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          generateBtn.disabled = false;
+          generateBtn.textContent = 'Generate AI Caption';
+          if (data.caption) {
+            captionInput.value = data.caption;
+            showStatus(generateStatus, 'Caption generated! Edit it if you want, then hit Send.', 'success');
+          } else {
+            showStatus(generateStatus, 'Error: ' + (data.error || 'Unknown'), 'error');
+          }
+        })
+        .catch(function(err) {
+          generateBtn.disabled = false;
+          generateBtn.textContent = 'Generate AI Caption';
+          showStatus(generateStatus, 'Error: ' + err.message, 'error');
+        });
+      });
+
+      // --- Send Notification ---
+      var sendBtn = document.getElementById('send-btn');
+      var captionInput = document.getElementById('caption-input');
+      var sendStatus = document.getElementById('send-status');
+
+      sendBtn.addEventListener('click', function() {
+        var caption = captionInput.value.trim();
+        if (!caption) {
+          showStatus(sendStatus, 'Please write a caption.', 'error');
+          return;
+        }
+        if (!selectedFile) {
+          showStatus(sendStatus, 'Please select a screenshot.', 'error');
+          return;
+        }
+
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        showStatus(sendStatus, 'Uploading image and sending notifications...', 'info');
+
+        var fd = new FormData();
+        fd.append('password', storedPassword);
+        fd.append('caption', caption);
+        fd.append('image', selectedFile);
+
+        fetch('/api/send', {
+          method: 'POST',
+          body: fd
+        })
+        .then(function(res) { return res.json().then(function(data) { return { status: res.status, data: data }; }); })
+        .then(function(result) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send Notification';
+
+          if (result.status === 401) {
+            showStatus(sendStatus, 'Wrong password. Go back and try again.', 'error');
+            return;
+          }
+          if (result.status !== 200) {
+            showStatus(sendStatus, 'Error: ' + (result.data.error || 'Unknown error'), 'error');
+            return;
+          }
+
+          var d = result.data;
+          showStatus(sendStatus,
+            'Sent to ' + d.sent + ' subscriber' + (d.sent !== 1 ? 's' : '') +
+            (d.failed > 0 ? ' (' + d.failed + ' failed)' : '') +
+            (d.staleRemoved > 0 ? ', removed ' + d.staleRemoved + ' stale tokens' : ''),
+            'success'
+          );
+
+          // Add to history
+          addHistoryItem(caption, d.sent, d.failed);
+
+          // Reset form
+          captionInput.value = '';
+          selectedFile = null;
+          uploadFilename.textContent = '';
+          uploadArea.classList.remove('has-file');
+          previewContainer.classList.remove('visible');
+          fileInput.value = '';
+
+          // Update subscriber count
+          document.getElementById('sub-count').textContent =
+            'Total subscribers: ' + d.totalSubscribers;
+        })
+        .catch(function(err) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send Notification';
+          showStatus(sendStatus, 'Network error: ' + err.message, 'error');
+        });
+      });
+
+      function addHistoryItem(caption, sent, failed) {
+        var div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = '<div class="time">' + new Date().toLocaleString() + '</div>' +
+          '<div class="caption">' + caption.substring(0, 120) + (caption.length > 120 ? '...' : '') + '</div>' +
+          '<div class="stats">Sent: ' + sent + (failed > 0 ? ' | Failed: ' + failed : '') + '</div>';
+        var history = document.getElementById('history');
+        history.insertBefore(div, history.firstChild);
+      }
+    })();
+  </script>
+</body>
+</html>
