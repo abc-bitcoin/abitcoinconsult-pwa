@@ -12,6 +12,10 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <!-- Firebase SDK (compat builds for simple script-tag usage) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -196,20 +200,74 @@
     })();
 
     // ============================================================
-    // NOTIFICATION PERMISSION
+    // FIREBASE + PUSH NOTIFICATIONS
     // ============================================================
     (function() {
+      // Initialize Firebase
+      var firebaseConfig = {
+        apiKey: "AIzaSyBqI2Dt0gF-yYzNGt4jGSHE5zViMxF16Qc",
+        authDomain: "abitcoinconsult.firebaseapp.com",
+        projectId: "abitcoinconsult",
+        storageBucket: "abitcoinconsult.firebasestorage.app",
+        messagingSenderId: "215439248030",
+        appId: "1:215439248030:web:9325c57f72f64ecc33898f",
+        measurementId: "G-BFQD8QSRH5"
+      };
+      firebase.initializeApp(firebaseConfig);
+      var messaging = firebase.messaging();
+
+      var VAPID_KEY = 'BPWIcxJ_zXU6Tpz1lSN3ZJriX7H78g28XY4AHBFaNWUAyjF6nrR-_iHhItzO3bk5KJY2n4KpDAy_UVxyGUZp23E';
+
+      function getAndSaveToken() {
+        messaging.getToken({ vapidKey: VAPID_KEY })
+          .then(function(token) {
+            if (token) {
+              console.log('FCM Token:', token);
+              // Store token in IndexedDB for later use
+              var req = indexedDB.open('abc_feed', 2);
+              req.onsuccess = function(e) {
+                var db = e.target.result;
+                var tx = db.transaction('state', 'readwrite');
+                tx.objectStore('state').put(token, 'fcm_token');
+              };
+            } else {
+              console.log('No FCM token available — permission not granted');
+            }
+          })
+          .catch(function(err) {
+            console.log('FCM token error:', err);
+          });
+      }
+
+      // Handle foreground messages (when app is open)
+      messaging.onMessage(function(payload) {
+        console.log('Foreground message:', payload);
+        var data = payload.notification || payload.data || {};
+        var title = data.title || 'A Bitcoin Consult';
+        var body = data.body || 'New transaction posted';
+        // Show an in-app notification banner or just rely on the system
+        if (Notification.permission === 'granted') {
+          new Notification(title, {
+            body: body,
+            icon: '/icons/icon-192.png'
+          });
+        }
+      });
+
       var notifyBtn = document.getElementById('notify-btn');
       if (notifyBtn) {
         if (Notification.permission === 'granted') {
-          notifyBtn.textContent = 'Notifications Enabled ✓';
+          notifyBtn.textContent = 'Notifications Enabled \u2713';
           notifyBtn.disabled = true;
+          // Already have permission — get the FCM token
+          getAndSaveToken();
         }
         notifyBtn.addEventListener('click', function() {
           Notification.requestPermission().then(function(perm) {
             if (perm === 'granted') {
-              notifyBtn.textContent = 'Notifications Enabled ✓';
+              notifyBtn.textContent = 'Notifications Enabled \u2713';
               notifyBtn.disabled = true;
+              getAndSaveToken();
             }
           });
         });
