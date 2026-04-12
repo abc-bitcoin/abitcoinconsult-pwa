@@ -49,7 +49,7 @@
       <div class="feed-viewport" id="feed-viewport">
         <div class="feed-track" id="feed-track">
 
-          <!-- Genesis Post -->
+          <!-- Genesis Post (placeholder) -->
           <div class="post-slide" data-read="false">
             <div class="post-card unread active-card">
               <div class="post-tx-bar">
@@ -82,7 +82,7 @@
       <div class="feed-dots" id="feed-dots"></div>
     </div>
 
-    <!-- ===== ARCHIVE VIEW ===== -->
+    <!-- ===== ARCHIVE VIEW (The Chain) ===== -->
     <div class="view" id="archive-view">
       <div class="archive-scroll">
         <div class="archive-header">
@@ -90,7 +90,7 @@
           <div class="archive-line"></div>
         </div>
 
-        <!-- Current block -->
+        <!-- Current block: progress card -->
         <article class="current-block-card">
           <div class="current-block-inner">
             <div class="current-block-left">
@@ -148,27 +148,34 @@
   </div>
 
   <script>
+    // ============================================================
     // SERVICE WORKER REGISTRATION
+    // ============================================================
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(function(reg) { console.log('SW registered, scope:', reg.scope); })
         .catch(function(err) { console.log('SW registration failed:', err); });
     }
 
+    // ============================================================
     // PWA INSTALL PROMPT
+    // ============================================================
     (function() {
       var deferredPrompt = null;
       var installBtn = document.getElementById('install-btn');
+
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         deferredPrompt = e;
         if (installBtn) installBtn.style.display = 'inline-block';
       });
+
       if (installBtn) {
         installBtn.addEventListener('click', function() {
           if (deferredPrompt) {
             deferredPrompt.prompt();
             deferredPrompt.userChoice.then(function(result) {
+              console.log('Install prompt result:', result.outcome);
               deferredPrompt = null;
               if (result.outcome === 'accepted') {
                 installBtn.textContent = 'Installed ✓';
@@ -178,12 +185,19 @@
           }
         });
       }
+
+      // Detect if already installed
       if (window.matchMedia('(display-mode: standalone)').matches) {
-        if (installBtn) { installBtn.textContent = 'Installed ✓'; installBtn.disabled = true; }
+        if (installBtn) {
+          installBtn.textContent = 'Installed ✓';
+          installBtn.disabled = true;
+        }
       }
     })();
 
+    // ============================================================
     // NOTIFICATION PERMISSION
+    // ============================================================
     (function() {
       var notifyBtn = document.getElementById('notify-btn');
       if (notifyBtn) {
@@ -202,7 +216,9 @@
       }
     })();
 
-    // SWIPE FEED
+    // ============================================================
+    // SWIPE FEED with read/unread tracking + peek
+    // ============================================================
     (function() {
       var track = document.getElementById('feed-track');
       var viewport = document.getElementById('feed-viewport');
@@ -213,10 +229,14 @@
       var currentIndex = 0;
       var startX = 0, currentTranslate = 0, prevTranslate = 0;
       var isDragging = false, startTime = 0;
+
+      // Track read state per slide
       var readState = [];
       for (var i = 0; i < total; i++) {
         readState.push(slides[i].getAttribute('data-read') === 'true');
       }
+
+      // Build dots
       function buildDots() {
         dotsContainer.innerHTML = '';
         for (var i = 0; i < total; i++) {
@@ -226,26 +246,40 @@
         }
         updateDots();
       }
+
       function updateDots() {
         var dots = dotsContainer.querySelectorAll('.feed-dot');
         for (var i = 0; i < dots.length; i++) {
           dots[i].className = 'feed-dot';
-          if (i === currentIndex) dots[i].classList.add('active-dot');
-          else if (readState[i]) dots[i].classList.add('read-dot');
-          else dots[i].classList.add('unread-dot');
+          if (i === currentIndex) {
+            dots[i].classList.add('active-dot');
+          } else if (readState[i]) {
+            dots[i].classList.add('read-dot');
+          } else {
+            dots[i].classList.add('unread-dot');
+          }
         }
       }
+
       function updateCardStates() {
         for (var i = 0; i < cards.length; i++) {
           cards[i].classList.remove('active-card', 'read', 'unread');
           if (i === currentIndex) {
             cards[i].classList.add('active-card');
-            if (!readState[i]) { readState[i] = true; slides[i].setAttribute('data-read', 'true'); }
+            if (!readState[i]) {
+              readState[i] = true;
+              slides[i].setAttribute('data-read', 'true');
+            }
             cards[i].classList.add('unread');
-          } else if (readState[i]) { cards[i].classList.add('read'); }
-          else { cards[i].classList.add('unread'); }
+          } else if (readState[i]) {
+            cards[i].classList.add('read');
+          } else {
+            cards[i].classList.add('unread');
+          }
         }
       }
+
+      // --- IndexedDB ---
       var db = null;
       function openDB(cb) {
         var req = indexedDB.open('abc_feed', 2);
@@ -271,11 +305,14 @@
         var rRead = store.get('read');
         tx.oncomplete = function() {
           var idx = typeof rIdx.result === 'number' && rIdx.result < total ? rIdx.result : 0;
-          if (Array.isArray(rRead.result) && rRead.result.length === total) readState = rRead.result;
+          if (Array.isArray(rRead.result) && rRead.result.length === total) {
+            readState = rRead.result;
+          }
           cb(idx);
         };
         tx.onerror = function() { cb(0); };
       }
+
       function goTo(index, save) {
         if (index < 0) index = 0;
         if (index >= total) index = total - 1;
@@ -289,7 +326,9 @@
         var hint = document.getElementById('swipe-hint');
         if (hint && currentIndex > 0) hint.style.display = 'none';
       }
+
       function getX(e) { return e.type.includes('mouse') ? e.pageX : e.touches[0].clientX; }
+
       viewport.addEventListener('touchstart', function(e) {
         startX = getX(e); startTime = Date.now(); isDragging = true;
         track.classList.add('dragging');
@@ -307,6 +346,7 @@
         else if (moved > 50 || (moved > 20 && vel > 0.3)) goTo(currentIndex - 1);
         else goTo(currentIndex);
       });
+
       viewport.addEventListener('mousedown', function(e) {
         startX = getX(e); startTime = Date.now(); isDragging = true;
         track.classList.add('dragging'); e.preventDefault();
@@ -324,12 +364,20 @@
         else if (moved > 50) goTo(currentIndex - 1);
         else goTo(currentIndex);
       });
+
       window.addEventListener('resize', function() { goTo(currentIndex, false); });
+
       buildDots();
-      openDB(function() { loadState(function(savedIdx) { goTo(savedIdx, false); }); });
+      openDB(function() {
+        loadState(function(savedIdx) {
+          goTo(savedIdx, false);
+        });
+      });
     })();
 
+    // ============================================================
     // BOTTOM NAV
+    // ============================================================
     (function() {
       var navItems = document.querySelectorAll('.nav-item');
       var views = document.querySelectorAll('.view');
@@ -344,7 +392,9 @@
       });
     })();
 
+    // ============================================================
     // PARTICLE NETWORK
+    // ============================================================
     (function() {
       var c = document.getElementById('particle-canvas');
       var ctx = c.getContext('2d');
