@@ -223,13 +223,24 @@
           .then(function(token) {
             if (token) {
               console.log('FCM Token:', token);
-              // Store token in IndexedDB for later use
+              // Store token in IndexedDB for local use
               var req = indexedDB.open('abc_feed', 2);
               req.onsuccess = function(e) {
                 var db = e.target.result;
                 var tx = db.transaction('state', 'readwrite');
                 tx.objectStore('state').put(token, 'fcm_token');
               };
+              // Send token to server so we can push notifications later
+              fetch('/api/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token })
+              }).then(function(res) {
+                if (res.ok) console.log('Token saved to server');
+                else console.log('Token save failed:', res.status);
+              }).catch(function(err) {
+                console.log('Token save error:', err);
+              });
             } else {
               console.log('No FCM token available — permission not granted');
             }
