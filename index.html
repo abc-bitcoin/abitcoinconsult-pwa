@@ -60,11 +60,11 @@
                 <div class="post-image-placeholder">[ first transaction incoming ]</div>
               </div>
               <p class="post-caption">
-                Welcome to A Bitcoin Consult. Three curated Bitcoin insights per day, delivered straight to your phone. Each post is a transaction. Each week is a block. This is the signal \u2014 not the noise.
+                Welcome to A Bitcoin Consult. Three curated Bitcoin insights per day, delivered straight to your phone. Each post is a transaction. Each week is a block. This is the signal — not the noise.
               </p>
               <div class="post-meta">
                 <span>Genesis tx 0 of 21</span>
-                <span>conf: \u221e</span>
+                <span>conf: ∞</span>
               </div>
             </div>
           </div>
@@ -74,7 +74,7 @@
         <!-- Swipe hint -->
         <div class="swipe-hint" id="swipe-hint">
           <span>Swipe for next transaction</span>
-          <span class="swipe-arrow">\u2192</span>
+          <span class="swipe-arrow">→</span>
         </div>
       </div>
 
@@ -97,7 +97,7 @@
               <div class="current-block-icon">#1</div>
               <div class="current-block-content">
                 <div class="current-block-headline">Mining in progress</div>
-                <div class="current-block-meta">Week 1 \u00b7 Apr 11 \u2013 17</div>
+                <div class="current-block-meta">Week 1 · Apr 11 – 17</div>
               </div>
             </div>
             <div class="current-block-txcount">0 / 21</div>
@@ -112,7 +112,7 @@
         <!-- Newsletter -->
         <div class="newsletter-card">
           <h3>The Weekly Digest</h3>
-          <p>Every Sunday, the block is mined and broadcast to your inbox \u2014 all 21 transactions with themes and context.</p>
+          <p>Every Sunday, the block is mined and broadcast to your inbox — all 21 transactions with themes and context.</p>
           <div class="newsletter-badge">Coming Soon</div>
         </div>
       </div>
@@ -135,13 +135,13 @@
     <!-- BOTTOM NAV -->
     <nav class="nav-bar">
       <button class="nav-item active" data-view="feed-view">
-        <span class="nav-icon">\u25c6</span><span>Feed</span>
+        <span class="nav-icon">◆</span><span>Feed</span>
       </button>
       <button class="nav-item" data-view="archive-view">
-        <span class="nav-icon">\u2630</span><span>Chain</span>
+        <span class="nav-icon">☰</span><span>Chain</span>
       </button>
       <button class="nav-item" data-view="install-view">
-        <span class="nav-icon">\u2193</span><span>Install</span>
+        <span class="nav-icon">↓</span><span>Install</span>
       </button>
     </nav>
 
@@ -171,7 +171,7 @@
             deferredPrompt.userChoice.then(function(result) {
               deferredPrompt = null;
               if (result.outcome === 'accepted') {
-                installBtn.textContent = 'Installed \u2713';
+                installBtn.textContent = 'Installed ✓';
                 installBtn.disabled = true;
               }
             });
@@ -179,7 +179,7 @@
         });
       }
       if (window.matchMedia('(display-mode: standalone)').matches) {
-        if (installBtn) { installBtn.textContent = 'Installed \u2713'; installBtn.disabled = true; }
+        if (installBtn) { installBtn.textContent = 'Installed ✓'; installBtn.disabled = true; }
       }
     })();
 
@@ -188,13 +188,13 @@
       var notifyBtn = document.getElementById('notify-btn');
       if (notifyBtn) {
         if (Notification.permission === 'granted') {
-          notifyBtn.textContent = 'Notifications Enabled \u2713';
+          notifyBtn.textContent = 'Notifications Enabled ✓';
           notifyBtn.disabled = true;
         }
         notifyBtn.addEventListener('click', function() {
           Notification.requestPermission().then(function(perm) {
             if (perm === 'granted') {
-              notifyBtn.textContent = 'Notifications Enabled \u2713';
+              notifyBtn.textContent = 'Notifications Enabled ✓';
               notifyBtn.disabled = true;
             }
           });
