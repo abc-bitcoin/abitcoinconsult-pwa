@@ -48,7 +48,7 @@ messaging.onBackgroundMessage(function(payload) {
 // CACHE_NAME is like a label on a storage box. When we update
 // the site, we change this version number, which tells the
 // browser "throw out the old box, here's a new one."
-var CACHE_NAME = 'abc-cache-v3';
+var CACHE_NAME = 'abc-cache-v4';
 
 // These are the files we want to save for offline use.
 // When someone visits your site for the first time, the service
@@ -120,23 +120,49 @@ self.addEventListener('activate', function(event) {
 // -------------------------------------------------------
 // FETCH EVENT
 // -------------------------------------------------------
-// Every time the app tries to load a file (a page, an image,
-// a CSS file, etc.), this event fires. We use a "cache first"
-// strategy: check the local cache first, and only go to the
-// network if we don't have a cached copy.
+// Strategy:
+// - HTML pages & API calls → NETWORK FIRST (always fresh)
+// - Everything else (CSS, JS, images) → CACHE FIRST (fast)
 //
-// This is what makes the app feel fast — most things load
-// from the phone's storage instead of the internet.
+// This prevents stale HTML from getting stuck in the cache
+// while still keeping the app fast for static assets.
 // -------------------------------------------------------
 self.addEventListener('fetch', function(event) {
+  var url = new URL(event.request.url);
+
+  // Network-first for HTML pages and API calls
+  var isHTML = event.request.mode === 'navigate' ||
+               (event.request.headers.get('accept') || '').indexOf('text/html') >= 0;
+  var isAPI = url.pathname.indexOf('/api/') === 0;
+
+  if (isHTML || isAPI) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function(networkResponse) {
+          // Cache the fresh HTML for offline use
+          if (isHTML && networkResponse.ok) {
+            var clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(function(cache) {
+              cache.put(event.request, clone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(function() {
+          // Offline — fall back to cache
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Cache-first for static assets (CSS, JS, images, icons)
   event.respondWith(
     caches.match(event.request)
       .then(function(cachedResponse) {
         if (cachedResponse) {
-          // Found it in cache — return the local copy
           return cachedResponse;
         }
-        // Not in cache — fetch from the network
         return fetch(event.request);
       })
   );
