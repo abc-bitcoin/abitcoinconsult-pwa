@@ -600,11 +600,11 @@ body {
 /* ============================================================
    CHAIN — Daily Transaction Cards
    ============================================================ */
+/* Chain tab — compact day banners */
 .chain-day-card {
   background: #0e0e0e;
   border-radius: 10px;
   margin-bottom: 0.6rem;
-  overflow: hidden;
   cursor: pointer;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -624,7 +624,6 @@ body {
   align-items: center;
   padding: 1rem 1.25rem;
   gap: 0.75rem;
-  position: relative;
 }
 
 .chain-unopened-badge {
@@ -639,11 +638,36 @@ body {
   flex-shrink: 0;
 }
 
+.chain-read-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: #1a1a2a;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .chain-day-title {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.chain-day-info {
   flex: 1;
+  min-width: 0;
+}
+
+.chain-day-headline {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chain-day-meta {
@@ -653,50 +677,133 @@ body {
   flex-shrink: 0;
 }
 
-.chain-day-arrow {
-  font-size: 0.6rem;
-  color: var(--text-muted);
-  transition: transform 0.25s ease;
+/* ===== DAY VIEWER OVERLAY ===== */
+.day-viewer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-deep);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.day-viewer.hidden {
+  display: none;
+}
+
+.day-viewer-header {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 
-.chain-expanded .chain-day-arrow {
-  transform: rotate(180deg);
+.day-viewer-back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Expanded posts inside a day card */
-.chain-day-posts {
-  max-height: 0;
+.day-viewer-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.day-viewer-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.day-viewer-viewport {
+  flex: 1;
   overflow: hidden;
-  transition: max-height 0.4s ease;
+  position: relative;
 }
 
-.chain-expanded .chain-day-posts {
-  max-height: 5000px; /* large enough for any content */
+.day-viewer-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.chain-post-item {
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border-subtle);
+.day-viewer-track.dragging {
+  transition: none;
 }
 
-.chain-post-tx {
-  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
-  font-size: 0.6rem;
+.dv-slide {
+  min-width: calc(100% - 55px);
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+}
+
+.dv-slide:last-child {
+  min-width: 100%;
+}
+
+/* Back to Chain final slide */
+.dv-back-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 2rem;
+}
+
+.dv-back-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.dv-back-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.dv-back-text {
+  font-size: 0.75rem;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: 2rem;
 }
 
-.chain-post-image {
-  border: 1px solid var(--border-subtle);
+.dv-back-btn {
+  background: var(--accent);
+  color: var(--bg-deep);
+  border: none;
   border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 0.75rem;
-}
-
-.chain-post-img {
-  width: 100%;
-  display: block;
+  padding: 0.85rem 2rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Sealed blocks */
