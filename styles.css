@@ -597,6 +597,108 @@ body {
   transition: width 0.5s ease;
 }
 
+/* ============================================================
+   CHAIN — Daily Transaction Cards
+   ============================================================ */
+.chain-day-card {
+  background: #0e0e0e;
+  border-radius: 10px;
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chain-day-card.chain-read {
+  border: 1px solid #222;
+}
+
+.chain-day-card.chain-unopened {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px rgba(247, 147, 26, 0.3), 0 0 6px rgba(247, 147, 26, 0.2);
+  animation: card-glow 2s ease-in-out infinite;
+}
+
+.chain-day-header {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+  position: relative;
+}
+
+.chain-unopened-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--bg-deep);
+  background: var(--accent);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.chain-day-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.chain-day-meta {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.chain-day-arrow {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.chain-expanded .chain-day-arrow {
+  transform: rotate(180deg);
+}
+
+/* Expanded posts inside a day card */
+.chain-day-posts {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+
+.chain-expanded .chain-day-posts {
+  max-height: 5000px; /* large enough for any content */
+}
+
+.chain-post-item {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.chain-post-tx {
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.chain-post-image {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.chain-post-img {
+  width: 100%;
+  display: block;
+}
+
 /* Sealed blocks */
 .sealed-block {
   background: #0e0e0e;
