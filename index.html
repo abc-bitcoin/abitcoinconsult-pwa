@@ -53,22 +53,22 @@
       <div class="feed-viewport" id="feed-viewport">
         <div class="feed-track" id="feed-track">
 
-          <!-- Genesis Post (placeholder) -->
-          <div class="post-slide" data-read="false">
-            <div class="post-card unread active-card">
+          <!-- "All caught up" end slide — always last (rightmost) -->
+          <div class="post-slide caught-up-slide" data-read="true" id="caught-up-slide">
+            <div class="post-card read caught-up-card">
               <div class="post-tx-bar">
                 <span class="post-tx-id">tx <span class="hash">#000000</span></span>
-                <span class="post-tx-status pending">Pending</span>
+                <span class="post-tx-status caught-up">Up to date</span>
               </div>
-              <div class="post-image">
-                <div class="post-image-placeholder">[ first transaction incoming ]</div>
+              <div class="caught-up-content">
+                <div class="caught-up-icon">&#10003;</div>
+                <h3 class="caught-up-title">You're all caught up</h3>
+                <p class="caught-up-text">
+                  Three curated Bitcoin insights per day, delivered to your phone. Each post is a transaction. Each week is a block. New posts will appear to the right.
+                </p>
               </div>
-              <p class="post-caption">
-                Welcome to A Bitcoin Consult. Three curated Bitcoin insights per day, delivered straight to your phone. Each post is a transaction. Each week is a block. This is the signal — not the noise.
-              </p>
               <div class="post-meta">
-                <span>Genesis tx 0 of 21</span>
-                <span>conf: ∞</span>
+                <span>The signal — not the noise.</span>
               </div>
             </div>
           </div>
@@ -77,7 +77,10 @@
 
         <!-- Swipe hint -->
         <div class="swipe-hint" id="swipe-hint">
-          <span>Swipe for next transaction</span>
+          <span class="swipe-arrow">←</span>
+          <span>older</span>
+          <span style="margin: 0 0.5rem; color: var(--text-faint);">|</span>
+          <span>newer</span>
           <span class="swipe-arrow">→</span>
         </div>
       </div>
@@ -178,7 +181,7 @@
         projectId: "abitcoinconsult",
         storageBucket: "abitcoinconsult.firebasestorage.app",
         messagingSenderId: "215439248030",
-        appId: "1:215439208030:web:9325c57f72f64ecc33898f",
+        appId: "1:215439248030:web:9325c57f72f64ecc33898f",
         measurementId: "G-BFQD8QSRH5"
       };
       firebase.initializeApp(firebaseConfig);
@@ -187,10 +190,11 @@
       var VAPID_KEY = 'BPWIcxJ_zXU6Tpz1lSN3ZJriX7H78g28XY4AHBFaNWUAyjF6nrR-_iHhItzO3bk5KJY2n4KpDAy_UVxyGUZp23E';
 
       function getAndSaveToken() {
+        var nb = document.getElementById('notify-btn');
         messaging.getToken({ vapidKey: VAPID_KEY })
           .then(function(token) {
             if (token) {
-              console.log('FCM Token:', token);
+              console.log('FCM Token obtained:', token.substring(0, 20) + '...');
               try {
                 var req = indexedDB.open('abc_feed', 2);
                 req.onsuccess = function(e) {
@@ -204,15 +208,26 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: token })
               }).then(function(res) {
-                if (res.ok) console.log('Token saved to server');
-                else console.log('Token save failed:', res.status);
+                if (res.ok) {
+                  console.log('Token saved to server');
+                  if (nb) nb.textContent = 'Notifications Enabled \u2713';
+                } else {
+                  console.log('Token save failed:', res.status);
+                  if (nb) nb.textContent = 'Error saving token';
+                }
               }).catch(function(err) {
                 console.log('Token save error:', err);
+                if (nb) nb.textContent = 'Token save failed';
               });
+            } else {
+              console.log('No FCM token returned');
+              if (nb) nb.textContent = 'Token unavailable';
             }
           })
           .catch(function(err) {
             console.log('FCM token error:', err);
+            if (nb) nb.textContent = 'Token error — retry';
+            if (nb) nb.disabled = false;
           });
       }
 
@@ -239,27 +254,48 @@
       var notifyBtn = document.getElementById('notify-btn');
       if (!notifyBtn) return;
 
+      function saveTokenWithFeedback() {
+        if (!window._abcGetToken) {
+          notifyBtn.textContent = 'Permission granted — token pending';
+          console.log('Firebase not ready — _abcGetToken missing');
+          // Retry after Firebase might have loaded
+          setTimeout(function() {
+            if (window._abcGetToken) {
+              window._abcGetToken();
+              notifyBtn.textContent = 'Notifications Enabled \u2713';
+            } else {
+              console.log('Firebase still not available for token');
+            }
+          }, 3000);
+          return;
+        }
+        window._abcGetToken();
+        notifyBtn.textContent = 'Notifications Enabled \u2713';
+      }
+
       // Check if already granted
       if ('Notification' in window && Notification.permission === 'granted') {
         notifyBtn.textContent = 'Notifications Enabled \u2713';
         notifyBtn.disabled = true;
-        if (window._abcGetToken) window._abcGetToken();
+        saveTokenWithFeedback();
         return;
       }
 
       notifyBtn.addEventListener('click', function() {
         if (!('Notification' in window)) {
-          alert('Notifications are not supported in this browser.');
+          alert('Notifications are not supported in this browser. If you are on iPhone, you need to install the app to your home screen first, then enable notifications.');
           return;
         }
+        notifyBtn.textContent = 'Requesting...';
         Notification.requestPermission().then(function(perm) {
           if (perm === 'granted') {
-            notifyBtn.textContent = 'Notifications Enabled \u2713';
             notifyBtn.disabled = true;
-            if (window._abcGetToken) window._abcGetToken();
+            saveTokenWithFeedback();
           } else if (perm === 'denied') {
             notifyBtn.textContent = 'Notifications Blocked';
             notifyBtn.disabled = true;
+          } else {
+            notifyBtn.textContent = 'Enable Notifications';
           }
         });
       });
@@ -427,12 +463,15 @@
         .then(function(data) {
           var posts = data.posts || [];
           var track = document.getElementById('feed-track');
-          var genesisSlide = track.querySelector('.post-slide');
+          var caughtUpSlide = document.getElementById('caught-up-slide');
 
-          // Insert newest posts before the genesis placeholder
+          // API returns newest-first — reverse so oldest is leftmost
+          posts.reverse();
+
+          // Insert posts oldest→newest BEFORE the "caught up" slide
           for (var i = 0; i < posts.length; i++) {
-            var slide = createPostSlide(posts[i], posts.length - i);
-            track.insertBefore(slide, genesisSlide);
+            var slide = createPostSlide(posts[i], i + 1);
+            track.insertBefore(slide, caughtUpSlide);
           }
 
           updateStatusBar(posts.length);
@@ -600,9 +639,31 @@
 
       window.addEventListener('resize', function() { goTo(currentIndex, false); });
 
+      function findFirstUnread() {
+        // Find the first unread post (skip the caught-up slide at the end)
+        for (var i = 0; i < total; i++) {
+          if (!readState[i] && !slides[i].classList.contains('caught-up-slide')) {
+            return i;
+          }
+        }
+        // All read — go to the caught-up slide (last one)
+        return total - 1;
+      }
+
       buildDots();
       openDB(function() {
-        loadState(function(savedIdx) { goTo(savedIdx, false); });
+        loadState(function(savedIdx) {
+          // If saved position is valid AND there are new posts beyond it, go to first unread
+          var firstUnread = findFirstUnread();
+          // Use saved position if it's still valid, otherwise jump to first unread
+          var startIdx = (savedIdx >= 0 && savedIdx < total) ? savedIdx : 0;
+          // If there are unread posts ahead of saved position, jump to first unread
+          if (firstUnread < total - 1 && firstUnread > startIdx) {
+            startIdx = firstUnread;
+          }
+          // If all posts read and saved is within range, keep saved
+          goTo(startIdx, false);
+        });
       });
     }
 
