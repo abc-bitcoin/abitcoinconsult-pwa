@@ -185,9 +185,16 @@ export async function onRequestPost(context) {
     }
 
     // --- 3. Fetch all FCM tokens from KV ---
+    // IMPORTANT: Filter out post_ keys — those are saved posts, not FCM tokens
     var kv = context.env.ABC_TOKENS;
     var tokenList = await kv.list();
-    var tokens = tokenList.keys.map(function(k) { return k.name; });
+    var tokens = [];
+    for (var t = 0; t < tokenList.keys.length; t++) {
+      var keyName = tokenList.keys[t].name;
+      if (keyName.indexOf('post_') !== 0) {
+        tokens.push(keyName);
+      }
+    }
 
     if (tokens.length === 0) {
       // Still save the post even if no subscribers yet
