@@ -488,11 +488,17 @@
           cards[i].classList.remove('active-card', 'read', 'unread');
           if (i === currentIndex) {
             cards[i].classList.add('active-card');
-            if (!readState[i]) { readState[i] = true; slides[i].setAttribute('data-read', 'true'); }
-            cards[i].classList.add('unread');
+            // Mark as read on first view — border changes from orange to subtle
+            if (!readState[i]) {
+              readState[i] = true;
+              slides[i].setAttribute('data-read', 'true');
+            }
+            // Active card always shows as "read" (no orange border)
+            cards[i].classList.add('read');
           } else if (readState[i]) {
             cards[i].classList.add('read');
           } else {
+            // Unseen cards keep the orange glow so the peek edge is visible
             cards[i].classList.add('unread');
           }
         }
