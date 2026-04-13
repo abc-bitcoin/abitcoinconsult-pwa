@@ -597,20 +597,64 @@ body {
   transition: width 0.5s ease;
 }
 
+/* Weekday tracker: S M T W T F S */
+.block-week-days {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0.25rem 0;
+  gap: 0.25rem;
+}
+
+.block-day {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: #111;
+  border: 1px solid #222;
+  transition: all 0.3s ease;
+}
+
+.block-day.block-day-active {
+  background: var(--accent);
+  color: var(--bg-deep);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(247, 147, 26, 0.35);
+}
+
+.block-day.block-day-today {
+  border-color: var(--text-primary);
+}
+
+.block-day.block-day-today:not(.block-day-active) {
+  color: var(--text-primary);
+  border-width: 2px;
+}
+
 /* ============================================================
    CHAIN — Daily Transaction Cards
    ============================================================ */
 /* Chain tab — compact day banners */
 .chain-day-card {
-  background: #0e0e0e;
-  border-radius: 10px;
-  margin-bottom: 0.6rem;
+  background: var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
   cursor: pointer;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chain-day-card:active {
+  opacity: 0.85;
 }
 
 .chain-day-card.chain-read {
-  border: 1px solid #222;
+  border: 1px solid var(--border-subtle);
 }
 
 .chain-day-card.chain-unopened {
@@ -622,38 +666,34 @@ body {
 .chain-day-header {
   display: flex;
   align-items: center;
-  padding: 1rem 1.25rem;
-  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  gap: 0.6rem;
 }
 
 .chain-unopened-badge {
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--bg-deep);
   background: var(--accent);
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 4px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .chain-read-badge {
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  background: #1a1a2a;
-  padding: 0.15rem 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.2rem 0.5rem;
   border-radius: 4px;
   flex-shrink: 0;
-}
-
-.chain-day-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .chain-day-info {
@@ -661,17 +701,25 @@ body {
   min-width: 0;
 }
 
+.chain-day-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
 .chain-day-headline {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .chain-day-meta {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--text-muted);
   font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
   flex-shrink: 0;
@@ -688,55 +736,65 @@ body {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .day-viewer.hidden {
   display: none;
 }
 
-.day-viewer-header {
-  padding: 0.75rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
+/* Floating "Back to Chain" button — always visible */
+.dv-floating-back {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1010;
+  background: var(--accent);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 24px;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 18px rgba(247, 147, 26, 0.5), 0 0 8px rgba(247, 147, 26, 0.3);
+  animation: card-glow 2s ease-in-out infinite;
 }
 
-.day-viewer-back-btn {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  text-align: left;
-  -webkit-tap-highlight-color: transparent;
+.day-viewer-header {
+  padding: 3.5rem 1rem 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
 .day-viewer-title {
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);
+  text-align: center;
 }
 
 .day-viewer-dots {
   display: flex;
   gap: 6px;
   justify-content: center;
+  padding-bottom: 0.25rem;
 }
 
 .day-viewer-viewport {
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
 .day-viewer-track {
   display: flex;
-  height: 100%;
+  min-height: 100%;
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
@@ -746,15 +804,20 @@ body {
 
 .dv-slide {
   min-width: calc(100% - 55px);
+  flex-shrink: 0;
   padding: 1rem;
   box-sizing: border-box;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  height: 100%;
 }
 
 .dv-slide:last-child {
   min-width: 100%;
+}
+
+/* The post-card inside day viewer needs explicit background */
+.dv-slide .post-card {
+  background: #0e0e0e;
 }
 
 /* Back to Chain final slide */
@@ -763,7 +826,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  min-height: 60vh;
   text-align: center;
   padding: 2rem;
 }
@@ -798,12 +861,14 @@ body {
   background: var(--accent);
   color: var(--bg-deep);
   border: none;
-  border-radius: 8px;
+  border-radius: 24px;
   padding: 0.85rem 2rem;
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 18px rgba(247, 147, 26, 0.5), 0 0 8px rgba(247, 147, 26, 0.3);
+  animation: card-glow 2s ease-in-out infinite;
 }
 
 /* Sealed blocks */
