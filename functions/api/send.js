@@ -208,7 +208,11 @@ export async function onRequestPost(context) {
 
       return new Response(JSON.stringify({
         ok: true,
-        message: 'No subscribers yet — notification not sent',
+        sent: 0,
+        failed: 0,
+        staleRemoved: 0,
+        totalSubscribers: 0,
+        message: 'Post saved — no subscribers yet',
         imageUrl: imageUrl
       }), {
         status: 200,
