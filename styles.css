@@ -192,20 +192,20 @@ body {
 
 .feed-track.dragging { transition: none; }
 
-/* Individual post (fills one screen) */
+/* Individual post — leaves a peek gap so the next card edge is visible */
 .post-slide {
-  min-width: 100%;
+  min-width: calc(100% - 40px);
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 1.25rem;
-  padding-right: 2.5rem;
+  padding: 1rem 0.75rem 1rem 1rem;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .post-slide:last-child {
-  padding-right: 1.25rem;
+  min-width: 100%;
+  padding-right: 1rem;
 }
 
 .post-card {
@@ -222,8 +222,8 @@ body {
 }
 
 .post-card.unread {
-  border: 1.5px solid var(--unread-border);
-  box-shadow: var(--unread-shadow);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 14px rgba(247, 147, 26, 0.2), 0 0 4px rgba(247, 147, 26, 0.15);
 }
 
 .post-card.read {
@@ -295,11 +295,58 @@ body {
   background: var(--bg-surface);
 }
 
+/* --- COLLAPSIBLE CAPTION --- */
+.caption-toggle {
+  margin-bottom: 0.5rem;
+}
+
+.caption-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glow);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.caption-btn:active {
+  background: var(--accent-glow);
+}
+
+.caption-arrow {
+  font-size: 0.6rem;
+  transition: transform 0.25s ease;
+}
+
+.caption-toggle.open .caption-arrow {
+  transform: rotate(180deg);
+}
+
+.caption-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.35s ease;
+  padding: 0 0.75rem;
+}
+
+.caption-toggle.open .caption-body {
+  max-height: 600px;
+  padding: 0.75rem;
+}
+
 .post-caption {
   font-size: 0.95rem;
   color: var(--text-primary);
   line-height: 1.75;
-  flex: 1;
+  margin: 0;
 }
 
 .post-meta {
