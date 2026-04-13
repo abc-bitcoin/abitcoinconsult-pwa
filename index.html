@@ -140,6 +140,20 @@
       </div>
     </div>
 
+    <!-- ===== DAY VIEWER OVERLAY ===== -->
+    <div id="day-viewer" class="day-viewer hidden">
+      <div class="day-viewer-header">
+        <button id="day-viewer-close" class="day-viewer-back-btn">&larr; Chain</button>
+        <div class="day-viewer-title" id="day-viewer-title"></div>
+        <div class="day-viewer-dots" id="day-viewer-dots"></div>
+      </div>
+      <div class="day-viewer-viewport" id="day-viewer-viewport">
+        <div class="day-viewer-track" id="day-viewer-track">
+          <!-- slides inserted dynamically -->
+        </div>
+      </div>
+    </div>
+
     <!-- BOTTOM NAV -->
     <nav class="nav-bar">
       <button class="nav-item active" data-view="feed-view">
@@ -498,7 +512,7 @@
       return { groups: groups, order: order };
     }
 
-    // Build a single day card for the Chain tab
+    // Build a compact day banner for the Chain tab
     function buildDayCard(dateKey, posts, allReadIds) {
       var hasUnread = false;
       for (var i = 0; i < posts.length; i++) {
@@ -512,33 +526,88 @@
       var label = dayLabel(dateKey);
       var txCount = posts.length + ' txn' + (posts.length !== 1 ? 's' : '');
 
-      var headerHtml =
+      card.innerHTML =
         '<div class="chain-day-header">' +
-          (hasUnread ? '<span class="chain-unopened-badge">Unopened</span>' : '') +
-          '<div class="chain-day-title">' + label + '</div>' +
-          '<div class="chain-day-meta">' + txCount + '</div>' +
-          '<span class="chain-day-arrow">&#9660;</span>' +
+          (hasUnread ? '<span class="chain-unopened-badge">Unopened</span>' : '<span class="chain-read-badge">Read</span>') +
+          '<div class="chain-day-info">' +
+            '<div class="chain-day-title">' + label + '</div>' +
+            '<div class="chain-day-headline" id="headline-' + dateKey + '">Loading...</div>' +
+          '</div>' +
+          '<div class="chain-day-meta">' + txCount + ' &rsaquo;</div>' +
         '</div>';
 
-      var postsHtml = '<div class="chain-day-posts">';
-      for (var j = 0; j < posts.length; j++) {
-        var p = posts[j];
+      // Fetch AI headline for this day
+      fetch('/api/daily-summary?date=' + dateKey)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var headlineEl = document.getElementById('headline-' + dateKey);
+          if (headlineEl && data.summary) {
+            headlineEl.textContent = data.summary;
+          } else if (headlineEl) {
+            headlineEl.textContent = txCount + ' confirmed';
+          }
+        })
+        .catch(function() {
+          var headlineEl = document.getElementById('headline-' + dateKey);
+          if (headlineEl) headlineEl.textContent = txCount + ' confirmed';
+        });
+
+      // Tapping banner opens the full day viewer
+      card.addEventListener('click', function() {
+        openDayViewer(posts, dateKey, allReadIds, card);
+      });
+
+      return card;
+    }
+
+    // =============================================================
+    // DAY VIEWER — full-screen swipeable overlay for Chain day posts
+    // =============================================================
+    var dayViewerActive = false;
+    var dayViewerCleanup = null;
+
+    function openDayViewer(posts, dateKey, allReadIds, bannerCard) {
+      var viewer = document.getElementById('day-viewer');
+      var track = document.getElementById('day-viewer-track');
+      var viewport = document.getElementById('day-viewer-viewport');
+      var dotsContainer = document.getElementById('day-viewer-dots');
+      var titleEl = document.getElementById('day-viewer-title');
+
+      // Set title
+      titleEl.textContent = dayLabel(dateKey);
+
+      // Clear previous slides
+      track.innerHTML = '';
+      dotsContainer.innerHTML = '';
+
+      // Build post slides (reusing same card structure as Feed)
+      for (var i = 0; i < posts.length; i++) {
+        var p = posts[i];
+        var slide = document.createElement('div');
+        slide.className = 'dv-slide';
+
+        var ts = new Date(p.timestamp);
+        var timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                      ' \u00b7 ' + ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         var txId = p.id.replace('post_', '').substring(0, 6);
-        var caption = cleanCaption(p.caption || '');
+
         var imgSrc = p.image || '';
         if (imgSrc.indexOf('/images/') === 0) {
           imgSrc = '/api/image?key=' + encodeURIComponent(imgSrc.replace('/images/', ''));
         }
-        var imgHtml = imgSrc
-          ? '<img src="' + imgSrc + '" alt="Tweet screenshot" loading="lazy" class="chain-post-img">'
-          : '';
-        var ts = new Date(p.timestamp);
-        var timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        var imageHtml = imgSrc
+          ? '<img src="' + imgSrc + '" alt="Tweet screenshot" loading="lazy">'
+          : '<div class="post-image-placeholder">[ image unavailable ]</div>';
 
-        postsHtml +=
-          '<div class="chain-post-item">' +
-            '<div class="chain-post-tx">tx #' + txId + ' · ' + timeStr + '</div>' +
-            (imgHtml ? '<div class="chain-post-image">' + imgHtml + '</div>' : '') +
+        var caption = cleanCaption(p.caption || '');
+
+        slide.innerHTML =
+          '<div class="post-card read">' +
+            '<div class="post-tx-bar">' +
+              '<span class="post-tx-id">tx <span class="hash">#' + txId + '</span></span>' +
+              '<span class="post-tx-status confirmed">Confirmed</span>' +
+            '</div>' +
+            '<div class="post-image">' + imageHtml + '</div>' +
             '<div class="caption-toggle">' +
               '<button class="caption-btn" onclick="this.parentNode.classList.toggle(\'open\')">' +
                 '<span class="caption-btn-text">Read Analysis</span>' +
@@ -548,40 +617,158 @@
                 '<p class="post-caption">' + escHtml(caption) + '</p>' +
               '</div>' +
             '</div>' +
+            '<div class="post-meta">' +
+              '<span>txn ' + (i + 1) + ' of ' + posts.length + '</span>' +
+              '<span>' + timeStr + '</span>' +
+            '</div>' +
           '</div>';
+
+        track.appendChild(slide);
       }
-      postsHtml += '</div>';
 
-      card.innerHTML = headerHtml + postsHtml;
+      // Add "Back to Chain" final slide
+      var backSlide = document.createElement('div');
+      backSlide.className = 'dv-slide dv-back-slide';
+      backSlide.innerHTML =
+        '<div class="dv-back-card">' +
+          '<div class="dv-back-icon">&#10003;</div>' +
+          '<div class="dv-back-title">All caught up for this day</div>' +
+          '<div class="dv-back-text">' + posts.length + ' transaction' + (posts.length !== 1 ? 's' : '') + ' reviewed</div>' +
+          '<button class="dv-back-btn" id="dv-back-btn">Back to Chain</button>' +
+        '</div>';
+      track.appendChild(backSlide);
 
-      // Click header to expand/collapse
-      var header = card.querySelector('.chain-day-header');
-      header.addEventListener('click', function() {
-        card.classList.toggle('chain-expanded');
-        // Mark all posts in this day as read
-        if (card.classList.contains('chain-expanded') && hasUnread) {
-          card.classList.remove('chain-unopened');
-          card.classList.add('chain-read');
-          var badge = card.querySelector('.chain-unopened-badge');
-          if (badge) badge.style.display = 'none';
-          // Save read state
-          for (var k = 0; k < posts.length; k++) {
-            if (allReadIds.indexOf(posts[k].id) < 0) {
-              allReadIds.push(posts[k].id);
-            }
-          }
-          try {
-            var rq = indexedDB.open('abc_feed', 2);
-            rq.onsuccess = function(e) {
-              var db = e.target.result;
-              var tx = db.transaction('state', 'readwrite');
-              tx.objectStore('state').put(allReadIds, 'chainRead');
-            };
-          } catch(e) {}
+      var allSlides = Array.prototype.slice.call(track.querySelectorAll('.dv-slide'));
+      var total = allSlides.length;
+      var currentIndex = 0;
+
+      // Build dots
+      for (var d = 0; d < total; d++) {
+        var dot = document.createElement('div');
+        dot.className = 'feed-dot' + (d === 0 ? ' active-dot' : ' unread-dot');
+        dotsContainer.appendChild(dot);
+      }
+
+      function updateDots() {
+        var dots = Array.prototype.slice.call(dotsContainer.querySelectorAll('.feed-dot'));
+        for (var j = 0; j < dots.length; j++) {
+          dots[j].className = 'feed-dot' + (j === currentIndex ? ' active-dot' : j < currentIndex ? ' read-dot' : ' unread-dot');
         }
-      });
+      }
 
-      return card;
+      function getSlideWidth() {
+        return allSlides[0] ? allSlides[0].offsetWidth : viewport.offsetWidth;
+      }
+
+      var prevTranslate = 0, currentTranslate = 0;
+
+      function goTo(index) {
+        if (index < 0) index = 0;
+        if (index >= total) index = total - 1;
+        currentIndex = index;
+        var sw = getSlideWidth();
+        currentTranslate = -index * sw;
+        prevTranslate = currentTranslate;
+        track.style.transform = 'translateX(' + currentTranslate + 'px)';
+        updateDots();
+      }
+
+      // Swipe handlers
+      var startX = 0, startY = 0, startTime = 0, isDragging = false;
+      var isScrolling = false, directionLocked = false;
+
+      function onTouchStart(e) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        startTime = Date.now();
+        isDragging = true;
+        isScrolling = false;
+        directionLocked = false;
+      }
+      function onTouchMove(e) {
+        if (!isDragging) return;
+        if (!directionLocked) {
+          var dx = Math.abs(e.touches[0].clientX - startX);
+          var dy = Math.abs(e.touches[0].clientY - startY);
+          if (dx > 8 || dy > 8) {
+            directionLocked = true;
+            isScrolling = dy > dx;
+            if (!isScrolling) track.classList.add('dragging');
+          }
+        }
+        if (isScrolling) return;
+        currentTranslate = prevTranslate + (e.touches[0].clientX - startX);
+        track.style.transform = 'translateX(' + currentTranslate + 'px)';
+      }
+      function onTouchEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        track.classList.remove('dragging');
+        if (isScrolling) return;
+        var moved = currentTranslate - prevTranslate;
+        var vel = Math.abs(moved) / (Date.now() - startTime);
+        if (moved < -50 || (moved < -20 && vel > 0.3)) goTo(currentIndex + 1);
+        else if (moved > 50 || (moved > 20 && vel > 0.3)) goTo(currentIndex - 1);
+        else goTo(currentIndex);
+      }
+
+      viewport.addEventListener('touchstart', onTouchStart, { passive: true });
+      viewport.addEventListener('touchmove', onTouchMove, { passive: true });
+      viewport.addEventListener('touchend', onTouchEnd);
+
+      // Close handler
+      function closeDayViewer() {
+        viewer.classList.add('hidden');
+        dayViewerActive = false;
+
+        // Mark all posts as read
+        for (var k = 0; k < posts.length; k++) {
+          if (allReadIds.indexOf(posts[k].id) < 0) {
+            allReadIds.push(posts[k].id);
+          }
+        }
+        // Update the banner card visually
+        if (bannerCard) {
+          bannerCard.classList.remove('chain-unopened');
+          bannerCard.classList.add('chain-read');
+          var badge = bannerCard.querySelector('.chain-unopened-badge');
+          if (badge) { badge.textContent = 'Read'; badge.className = 'chain-read-badge'; }
+        }
+        // Save to IndexedDB
+        try {
+          var rq = indexedDB.open('abc_feed', 2);
+          rq.onsuccess = function(e) {
+            var db = e.target.result;
+            var tx = db.transaction('state', 'readwrite');
+            tx.objectStore('state').put(allReadIds, 'chainRead');
+          };
+        } catch(e) {}
+
+        // Clean up event listeners
+        viewport.removeEventListener('touchstart', onTouchStart);
+        viewport.removeEventListener('touchmove', onTouchMove);
+        viewport.removeEventListener('touchend', onTouchEnd);
+      }
+
+      document.getElementById('day-viewer-close').addEventListener('click', closeDayViewer);
+
+      // Back button on last slide
+      var backBtn = document.getElementById('dv-back-btn');
+      if (backBtn) backBtn.addEventListener('click', closeDayViewer);
+
+      // Resize handler
+      function onResize() { goTo(currentIndex); }
+      window.addEventListener('resize', onResize);
+
+      dayViewerCleanup = function() {
+        document.getElementById('day-viewer-close').removeEventListener('click', closeDayViewer);
+        window.removeEventListener('resize', onResize);
+      };
+
+      // Show the overlay
+      viewer.classList.remove('hidden');
+      dayViewerActive = true;
+      goTo(0);
     }
 
     function loadPosts() {
