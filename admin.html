@@ -376,15 +376,27 @@
           }
 
           var d = result.data;
-          showStatus(sendStatus,
-            'Sent to ' + d.sent + ' subscriber' + (d.sent !== 1 ? 's' : '') +
-            (d.failed > 0 ? ' (' + d.failed + ' failed)' : '') +
-            (d.staleRemoved > 0 ? ', removed ' + d.staleRemoved + ' stale tokens' : ''),
-            'success'
-          );
+          var subs = typeof d.totalSubscribers === 'number' ? d.totalSubscribers : 0;
+          var sentCount = d.sent || 0;
+          var failedCount = d.failed || 0;
+          var msg = d.message || '';
+
+          if (subs === 0) {
+            showStatus(sendStatus,
+              'Post saved! No subscribers yet — share the app to get your first.',
+              'info'
+            );
+          } else {
+            showStatus(sendStatus,
+              'Sent to ' + sentCount + ' subscriber' + (sentCount !== 1 ? 's' : '') +
+              (failedCount > 0 ? ' (' + failedCount + ' failed)' : '') +
+              (d.staleRemoved > 0 ? ', removed ' + d.staleRemoved + ' stale tokens' : ''),
+              'success'
+            );
+          }
 
           // Add to history
-          addHistoryItem(caption, d.sent, d.failed);
+          addHistoryItem(caption, sentCount, failedCount);
 
           // Reset form
           captionInput.value = '';
@@ -396,7 +408,7 @@
 
           // Update subscriber count
           document.getElementById('sub-count').textContent =
-            'Total subscribers: ' + d.totalSubscribers;
+            'Subscribers: ' + subs;
         })
         .catch(function(err) {
           sendBtn.disabled = false;
