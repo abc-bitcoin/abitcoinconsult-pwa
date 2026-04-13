@@ -48,7 +48,7 @@ messaging.onBackgroundMessage(function(payload) {
 // CACHE_NAME is like a label on a storage box. When we update
 // the site, we change this version number, which tells the
 // browser "throw out the old box, here's a new one."
-var CACHE_NAME = 'abc-cache-v2';
+var CACHE_NAME = 'abc-cache-v3';
 
 // These are the files we want to save for offline use.
 // When someone visits your site for the first time, the service
@@ -58,7 +58,7 @@ var CACHE_NAME = 'abc-cache-v2';
 var FILES_TO_CACHE = [
   '/',
   '/index.html',
-  '/styles.css',
+  '/styles.css?v=2',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
