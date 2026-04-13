@@ -164,45 +164,6 @@
     } catch(e) { console.log('SW error:', e); }
 
     // ============================================================
-    // PWA INSTALL PROMPT
-    // ============================================================
-    try {
-    (function() {
-      var deferredPrompt = null;
-      var installBtn = document.getElementById('install-btn');
-
-      window.addEventListener('beforeinstallprompt', function(e) {
-        e.preventDefault();
-        deferredPrompt = e;
-        if (installBtn) installBtn.style.display = 'inline-block';
-      });
-
-      if (installBtn) {
-        installBtn.addEventListener('click', function() {
-          if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(function(result) {
-              console.log('Install prompt result:', result.outcome);
-              deferredPrompt = null;
-              if (result.outcome === 'accepted') {
-                installBtn.textContent = 'Installed \u2713';
-                installBtn.disabled = true;
-              }
-            });
-          }
-        });
-      }
-
-      if (window.matchMedia('(display-mode: standalone)').matches) {
-        if (installBtn) {
-          installBtn.textContent = 'Installed \u2713';
-          installBtn.disabled = true;
-        }
-      }
-    })();
-    } catch(e) { console.log('Install prompt error:', e); }
-
-    // ============================================================
     // FIREBASE + PUSH NOTIFICATIONS
     // ============================================================
     try {
@@ -265,25 +226,97 @@
         }
       });
 
-      var notifyBtn = document.getElementById('notify-btn');
-      if (notifyBtn) {
-        if (Notification.permission === 'granted') {
-          notifyBtn.textContent = 'Notifications Enabled \u2713';
-          notifyBtn.disabled = true;
-          getAndSaveToken();
-        }
-        notifyBtn.addEventListener('click', function() {
-          Notification.requestPermission().then(function(perm) {
-            if (perm === 'granted') {
-              notifyBtn.textContent = 'Notifications Enabled \u2713';
-              notifyBtn.disabled = true;
-              getAndSaveToken();
-            }
-          });
-        });
-      }
+      // Expose getAndSaveToken so the notification handler outside can call it
+      window._abcGetToken = getAndSaveToken;
     })();
     } catch(e) { console.log('Firebase error:', e); }
+
+    // ============================================================
+    // NOTIFICATION BUTTON — separate from Firebase so it always works
+    // ============================================================
+    try {
+    (function() {
+      var notifyBtn = document.getElementById('notify-btn');
+      if (!notifyBtn) return;
+
+      // Check if already granted
+      if ('Notification' in window && Notification.permission === 'granted') {
+        notifyBtn.textContent = 'Notifications Enabled \u2713';
+        notifyBtn.disabled = true;
+        if (window._abcGetToken) window._abcGetToken();
+        return;
+      }
+
+      notifyBtn.addEventListener('click', function() {
+        if (!('Notification' in window)) {
+          alert('Notifications are not supported in this browser.');
+          return;
+        }
+        Notification.requestPermission().then(function(perm) {
+          if (perm === 'granted') {
+            notifyBtn.textContent = 'Notifications Enabled \u2713';
+            notifyBtn.disabled = true;
+            if (window._abcGetToken) window._abcGetToken();
+          } else if (perm === 'denied') {
+            notifyBtn.textContent = 'Notifications Blocked';
+            notifyBtn.disabled = true;
+          }
+        });
+      });
+    })();
+    } catch(e) { console.log('Notify btn error:', e); }
+
+    // ============================================================
+    // INSTALL BUTTON — fallback instructions for iOS / unsupported
+    // ============================================================
+    try {
+    (function() {
+      var installBtn = document.getElementById('install-btn');
+      if (!installBtn) return;
+
+      // On iOS (no beforeinstallprompt), show manual instructions
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                         window.navigator.standalone === true;
+
+      if (isStandalone) {
+        installBtn.textContent = 'Installed \u2713';
+        installBtn.disabled = true;
+        return;
+      }
+
+      if (isIOS) {
+        installBtn.textContent = 'Add to Home Screen';
+        installBtn.addEventListener('click', function() {
+          alert('To install:\n\n1. Tap the Share button (box with arrow)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"');
+        });
+        return;
+      }
+
+      // Chrome/Edge — use beforeinstallprompt if available
+      var deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+
+      installBtn.addEventListener('click', function() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(function(result) {
+            deferredPrompt = null;
+            if (result.outcome === 'accepted') {
+              installBtn.textContent = 'Installed \u2713';
+              installBtn.disabled = true;
+            }
+          });
+        } else {
+          // Fallback if prompt wasn't captured
+          alert('To install:\n\n1. Tap the menu (\u22ee) in Chrome\n2. Tap "Add to Home Screen" or "Install App"\n3. Confirm the install');
+        }
+      });
+    })();
+    } catch(e) { console.log('Install btn error:', e); }
 
     // ============================================================
     // POST LOADER — Fetches posts from /api/posts and renders them
@@ -337,8 +370,14 @@
                     ' \u00b7 ' + ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       var txId = post.id.replace('post_', '').substring(0, 6);
 
-      var imageHtml = post.image
-        ? '<img src="' + post.image + '" alt="Tweet screenshot" loading="lazy">'
+      // Convert /images/xxx URLs to /api/image?key=xxx
+      var imgSrc = post.image || '';
+      if (imgSrc.indexOf('/images/') === 0) {
+        imgSrc = '/api/image?key=' + encodeURIComponent(imgSrc.replace('/images/', ''));
+      }
+
+      var imageHtml = imgSrc
+        ? '<img src="' + imgSrc + '" alt="Tweet screenshot" loading="lazy">'
         : '<div class="post-image-placeholder">[ image unavailable ]</div>';
 
       var caption = cleanCaption(post.caption || '');
@@ -350,7 +389,15 @@
             '<span class="post-tx-status confirmed">Confirmed</span>' +
           '</div>' +
           '<div class="post-image">' + imageHtml + '</div>' +
-          '<p class="post-caption">' + escHtml(caption) + '</p>' +
+          '<div class="caption-toggle">' +
+            '<button class="caption-btn" onclick="this.parentNode.classList.toggle(\'open\')">' +
+              '<span class="caption-btn-text">Read Analysis</span>' +
+              '<span class="caption-arrow">&#9660;</span>' +
+            '</button>' +
+            '<div class="caption-body">' +
+              '<p class="post-caption">' + escHtml(caption) + '</p>' +
+            '</div>' +
+          '</div>' +
           '<div class="post-meta">' +
             '<span>txn ' + txNum + ' of 21</span>' +
             '<span>' + timeStr + '</span>' +
@@ -487,11 +534,17 @@
         tx.onerror = function() { cb(0); };
       }
 
+      function getSlideWidth() {
+        // Each slide is calc(100% - 40px) except the last which is 100%
+        return slides[0] ? slides[0].offsetWidth : viewport.offsetWidth;
+      }
+
       function goTo(index, save) {
         if (index < 0) index = 0;
         if (index >= total) index = total - 1;
         currentIndex = index;
-        currentTranslate = -index * viewport.offsetWidth;
+        var sw = getSlideWidth();
+        currentTranslate = -index * sw;
         prevTranslate = currentTranslate;
         track.style.transform = 'translateX(' + currentTranslate + 'px)';
         updateCardStates();
