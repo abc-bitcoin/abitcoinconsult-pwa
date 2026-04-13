@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin â A Bitcoin Consult</title>
+  <title>Admin — A Bitcoin Consult</title>
   <meta name="robots" content="noindex, nofollow">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -199,8 +199,8 @@
         <img class="preview-img" id="preview-img" alt="Preview">
       </div>
 
-      <label for="tweet-text">Tweet Text (paste from the screenshot)</label>
-      <textarea id="tweet-text" placeholder="Paste the tweet text here for AI caption generation..." style="min-height: 70px;"></textarea>
+      <label for="tweet-text">Tweet Text (optional — Claude will read the image automatically)</label>
+      <textarea id="tweet-text" placeholder="Optionally paste tweet text for extra context, or just click Generate..." style="min-height: 70px;"></textarea>
       <button class="btn btn-orange" id="generate-btn" style="margin-bottom: 1.2rem;">Generate AI Caption</button>
       <div class="status" id="generate-status"></div>
 
@@ -242,7 +242,7 @@
           showStatus(loginStatus, 'Please enter a password.', 'error');
           return;
         }
-        // We don't verify the password here â the server verifies it
+        // We don't verify the password here — the server verifies it
         // when you try to send. We just store it for later.
         storedPassword = pw;
         document.getElementById('login-section').style.display = 'none';
@@ -296,19 +296,23 @@
       var generateStatus = document.getElementById('generate-status');
 
       generateBtn.addEventListener('click', function() {
-        var text = tweetText.value.trim();
-        if (!text) {
-          showStatus(generateStatus, 'Paste the tweet text first.', 'error');
+        if (!selectedFile) {
+          showStatus(generateStatus, 'Please select a screenshot first.', 'error');
           return;
         }
         generateBtn.disabled = true;
-        generateBtn.textContent = 'Generating...';
-        showStatus(generateStatus, 'Asking AI for a caption...', 'info');
+        generateBtn.textContent = 'Reading image...';
+        showStatus(generateStatus, 'Claude is reading the screenshot...', 'info');
+
+        var gfd = new FormData();
+        gfd.append('password', storedPassword);
+        gfd.append('image', selectedFile);
+        var tweetVal = tweetText.value.trim();
+        if (tweetVal) gfd.append('tweet', tweetVal);
 
         fetch('/api/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tweet: text, password: storedPassword })
+          body: gfd
         })
         .then(function(res) { return res.json(); })
         .then(function(data) {
