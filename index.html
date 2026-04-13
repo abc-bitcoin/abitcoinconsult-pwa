@@ -44,7 +44,7 @@
       </div>
       <div class="status-item">
         <span class="status-label">Status</span>
-        <span class="status-value green">Mining</span>
+        <span class="status-value green">Live</span>
       </div>
     </div>
 
@@ -103,11 +103,20 @@
             <div class="current-block-left">
               <div class="current-block-icon">#1</div>
               <div class="current-block-content">
-                <div class="current-block-headline">Mining in progress</div>
+                <div class="current-block-headline">This Week's News</div>
                 <div class="current-block-meta">Week 1 · Apr 11 – 17</div>
               </div>
             </div>
             <div class="current-block-txcount" id="block-txcount">0 / 21</div>
+          </div>
+          <div class="block-week-days" id="block-week-days">
+            <div class="block-day" data-day="0">S</div>
+            <div class="block-day" data-day="1">M</div>
+            <div class="block-day" data-day="2">T</div>
+            <div class="block-day" data-day="3">W</div>
+            <div class="block-day" data-day="4">T</div>
+            <div class="block-day" data-day="5">F</div>
+            <div class="block-day" data-day="6">S</div>
           </div>
           <div class="block-progress-bar">
             <div class="block-progress-fill" id="block-progress-fill" style="width: 0%;"></div>
@@ -142,8 +151,8 @@
 
     <!-- ===== DAY VIEWER OVERLAY ===== -->
     <div id="day-viewer" class="day-viewer hidden">
+      <button id="day-viewer-close" class="dv-floating-back">&larr; Back to Chain</button>
       <div class="day-viewer-header">
-        <button id="day-viewer-close" class="day-viewer-back-btn">&larr; Chain</button>
         <div class="day-viewer-title" id="day-viewer-title"></div>
         <div class="day-viewer-dots" id="day-viewer-dots"></div>
       </div>
@@ -572,15 +581,17 @@
       var viewport = document.getElementById('day-viewer-viewport');
       var dotsContainer = document.getElementById('day-viewer-dots');
       var titleEl = document.getElementById('day-viewer-title');
+      var closeBtn = document.getElementById('day-viewer-close');
 
-      // Set title
+      // Clean up previous instance if any
+      if (dayViewerCleanup) { dayViewerCleanup(); dayViewerCleanup = null; }
+
       titleEl.textContent = dayLabel(dateKey);
-
-      // Clear previous slides
       track.innerHTML = '';
       dotsContainer.innerHTML = '';
+      track.style.transform = 'translateX(0px)';
 
-      // Build post slides (reusing same card structure as Feed)
+      // Build post slides
       for (var i = 0; i < posts.length; i++) {
         var p = posts[i];
         var slide = document.createElement('div');
@@ -626,7 +637,7 @@
         track.appendChild(slide);
       }
 
-      // Add "Back to Chain" final slide
+      // Final "Back to Chain" slide
       var backSlide = document.createElement('div');
       backSlide.className = 'dv-slide dv-back-slide';
       backSlide.innerHTML =
@@ -637,6 +648,13 @@
           '<button class="dv-back-btn" id="dv-back-btn">Back to Chain</button>' +
         '</div>';
       track.appendChild(backSlide);
+
+      // Show the overlay BEFORE measuring widths
+      viewer.classList.remove('hidden');
+      dayViewerActive = true;
+
+      // Force layout so offsetWidth is available
+      void viewport.offsetWidth;
 
       var allSlides = Array.prototype.slice.call(track.querySelectorAll('.dv-slide'));
       var total = allSlides.length;
@@ -657,7 +675,8 @@
       }
 
       function getSlideWidth() {
-        return allSlides[0] ? allSlides[0].offsetWidth : viewport.offsetWidth;
+        // Use viewport width minus peek gap (55px), matching the CSS calc
+        return viewport.offsetWidth - 55;
       }
 
       var prevTranslate = 0, currentTranslate = 0;
@@ -671,13 +690,18 @@
         prevTranslate = currentTranslate;
         track.style.transform = 'translateX(' + currentTranslate + 'px)';
         updateDots();
+        // Scroll each slide back to top when switching
+        for (var s = 0; s < allSlides.length; s++) {
+          if (s !== currentIndex) allSlides[s].scrollTop = 0;
+        }
       }
 
-      // Swipe handlers
+      // --- Touch / swipe handling ---
       var startX = 0, startY = 0, startTime = 0, isDragging = false;
       var isScrolling = false, directionLocked = false;
 
       function onTouchStart(e) {
+        if (!e.touches || !e.touches.length) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         startTime = Date.now();
@@ -685,38 +709,50 @@
         isScrolling = false;
         directionLocked = false;
       }
+
       function onTouchMove(e) {
-        if (!isDragging) return;
+        if (!isDragging || !e.touches || !e.touches.length) return;
+        var cx = e.touches[0].clientX;
+        var cy = e.touches[0].clientY;
+
         if (!directionLocked) {
-          var dx = Math.abs(e.touches[0].clientX - startX);
-          var dy = Math.abs(e.touches[0].clientY - startY);
-          if (dx > 8 || dy > 8) {
+          var dx = Math.abs(cx - startX);
+          var dy = Math.abs(cy - startY);
+          if (dx > 6 || dy > 6) {
             directionLocked = true;
             isScrolling = dy > dx;
             if (!isScrolling) track.classList.add('dragging');
           }
         }
+
+        // Vertical scroll — let the browser handle it natively
         if (isScrolling) return;
-        currentTranslate = prevTranslate + (e.touches[0].clientX - startX);
+
+        // Horizontal swipe — move the track
+        currentTranslate = prevTranslate + (cx - startX);
         track.style.transform = 'translateX(' + currentTranslate + 'px)';
       }
+
       function onTouchEnd() {
         if (!isDragging) return;
         isDragging = false;
         track.classList.remove('dragging');
         if (isScrolling) return;
+
         var moved = currentTranslate - prevTranslate;
-        var vel = Math.abs(moved) / (Date.now() - startTime);
-        if (moved < -50 || (moved < -20 && vel > 0.3)) goTo(currentIndex + 1);
-        else if (moved > 50 || (moved > 20 && vel > 0.3)) goTo(currentIndex - 1);
+        var elapsed = Date.now() - startTime || 1;
+        var vel = Math.abs(moved) / elapsed;
+
+        if (moved < -40 || (moved < -15 && vel > 0.25)) goTo(currentIndex + 1);
+        else if (moved > 40 || (moved > 15 && vel > 0.25)) goTo(currentIndex - 1);
         else goTo(currentIndex);
       }
 
       viewport.addEventListener('touchstart', onTouchStart, { passive: true });
       viewport.addEventListener('touchmove', onTouchMove, { passive: true });
-      viewport.addEventListener('touchend', onTouchEnd);
+      viewport.addEventListener('touchend', onTouchEnd, { passive: true });
 
-      // Close handler
+      // --- Close / back handler ---
       function closeDayViewer() {
         viewer.classList.add('hidden');
         dayViewerActive = false;
@@ -727,14 +763,14 @@
             allReadIds.push(posts[k].id);
           }
         }
-        // Update the banner card visually
+        // Update the banner
         if (bannerCard) {
           bannerCard.classList.remove('chain-unopened');
           bannerCard.classList.add('chain-read');
           var badge = bannerCard.querySelector('.chain-unopened-badge');
           if (badge) { badge.textContent = 'Read'; badge.className = 'chain-read-badge'; }
         }
-        // Save to IndexedDB
+        // Persist to IndexedDB
         try {
           var rq = indexedDB.open('abc_feed', 2);
           rq.onsuccess = function(e) {
@@ -744,30 +780,27 @@
           };
         } catch(e) {}
 
-        // Clean up event listeners
+        // Clean up
         viewport.removeEventListener('touchstart', onTouchStart);
         viewport.removeEventListener('touchmove', onTouchMove);
         viewport.removeEventListener('touchend', onTouchEnd);
+        closeBtn.removeEventListener('click', closeDayViewer);
+        window.removeEventListener('resize', onResize);
+        var bb = document.getElementById('dv-back-btn');
+        if (bb) bb.removeEventListener('click', closeDayViewer);
+        dayViewerCleanup = null;
       }
 
-      document.getElementById('day-viewer-close').addEventListener('click', closeDayViewer);
+      closeBtn.addEventListener('click', closeDayViewer);
+      var backBtnEl = document.getElementById('dv-back-btn');
+      if (backBtnEl) backBtnEl.addEventListener('click', closeDayViewer);
 
-      // Back button on last slide
-      var backBtn = document.getElementById('dv-back-btn');
-      if (backBtn) backBtn.addEventListener('click', closeDayViewer);
-
-      // Resize handler
       function onResize() { goTo(currentIndex); }
       window.addEventListener('resize', onResize);
 
-      dayViewerCleanup = function() {
-        document.getElementById('day-viewer-close').removeEventListener('click', closeDayViewer);
-        window.removeEventListener('resize', onResize);
-      };
+      dayViewerCleanup = closeDayViewer;
 
-      // Show the overlay
-      viewer.classList.remove('hidden');
-      dayViewerActive = true;
+      // Start at first slide
       goTo(0);
     }
 
@@ -859,6 +892,28 @@
       var bfill = document.getElementById('block-progress-fill');
       if (btx) btx.textContent = Math.min(totalPosts, MAX) + ' / ' + MAX;
       if (bfill) bfill.style.width = pct + '%';
+
+      // Highlight weekday indicators for days that have posts
+      var dayEls = document.querySelectorAll('.block-day');
+      // Figure out which days of the week have posts
+      var activeDays = {};
+      for (var di = 0; di < grouped.order.length; di++) {
+        var dk = grouped.order[di];
+        var dd = new Date(dk + 'T12:00:00');
+        activeDays[dd.getDay()] = true; // 0=Sun, 1=Mon, etc.
+      }
+      for (var dj = 0; dj < dayEls.length; dj++) {
+        var dayNum = parseInt(dayEls[dj].getAttribute('data-day'), 10);
+        if (activeDays[dayNum]) {
+          dayEls[dj].classList.add('block-day-active');
+        } else {
+          dayEls[dj].classList.remove('block-day-active');
+        }
+        // Highlight today
+        if (dayNum === new Date().getDay()) {
+          dayEls[dj].classList.add('block-day-today');
+        }
+      }
     }
 
     // ============================================================
