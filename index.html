@@ -182,7 +182,7 @@
               console.log('Install prompt result:', result.outcome);
               deferredPrompt = null;
               if (result.outcome === 'accepted') {
-                installBtn.textContent = 'Installed ✓';
+                installBtn.textContent = 'Installed \u2713';
                 installBtn.disabled = true;
               }
             });
@@ -190,10 +190,9 @@
         });
       }
 
-      // Detect if already installed
       if (window.matchMedia('(display-mode: standalone)').matches) {
         if (installBtn) {
-          installBtn.textContent = 'Installed ✓';
+          installBtn.textContent = 'Installed \u2713';
           installBtn.disabled = true;
         }
       }
@@ -203,7 +202,6 @@
     // FIREBASE + PUSH NOTIFICATIONS
     // ============================================================
     (function() {
-      // Initialize Firebase
       var firebaseConfig = {
         apiKey: "AIzaSyBqI2Dt0gF-yYzNGt4jGSHE5zViMxF16Qc",
         authDomain: "abitcoinconsult.firebaseapp.com",
@@ -223,14 +221,12 @@
           .then(function(token) {
             if (token) {
               console.log('FCM Token:', token);
-              // Store token in IndexedDB for local use
               var req = indexedDB.open('abc_feed', 2);
               req.onsuccess = function(e) {
                 var db = e.target.result;
                 var tx = db.transaction('state', 'readwrite');
                 tx.objectStore('state').put(token, 'fcm_token');
               };
-              // Send token to server so we can push notifications later
               fetch('/api/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -241,8 +237,6 @@
               }).catch(function(err) {
                 console.log('Token save error:', err);
               });
-            } else {
-              console.log('No FCM token available — permission not granted');
             }
           })
           .catch(function(err) {
@@ -250,18 +244,13 @@
           });
       }
 
-      // Handle foreground messages (when app is open)
       messaging.onMessage(function(payload) {
         console.log('Foreground message:', payload);
         var data = payload.notification || payload.data || {};
         var title = data.title || 'A Bitcoin Consult';
         var body = data.body || 'New transaction posted';
-        // Show an in-app notification banner or just rely on the system
         if (Notification.permission === 'granted') {
-          new Notification(title, {
-            body: body,
-            icon: '/icons/icon-192.png'
-          });
+          new Notification(title, { body: body, icon: '/icons/icon-192.png' });
         }
       });
 
@@ -270,7 +259,6 @@
         if (Notification.permission === 'granted') {
           notifyBtn.textContent = 'Notifications Enabled \u2713';
           notifyBtn.disabled = true;
-          // Already have permission — get the FCM token
           getAndSaveToken();
         }
         notifyBtn.addEventListener('click', function() {
@@ -286,26 +274,101 @@
     })();
 
     // ============================================================
-    // SWIPE FEED with read/unread tracking + peek
+    // POST LOADER — Fetches posts from /api/posts and renders them
     // ============================================================
-    (function() {
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function createPostSlide(post, txNum) {
+      var slide = document.createElement('div');
+      slide.className = 'post-slide';
+      slide.setAttribute('data-read', 'false');
+
+      var ts = new Date(post.timestamp);
+      var timeStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                    ' \u00b7 ' + ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      var txId = post.id.replace('post_', '').substring(0, 6);
+
+      var imageHtml = post.image
+        ? '<img src="' + post.image + '" alt="Tweet screenshot" loading="lazy">'
+        : '<div class="post-image-placeholder">[ image unavailable ]</div>';
+
+      slide.innerHTML =
+        '<div class="post-card unread">' +
+          '<div class="post-tx-bar">' +
+            '<span class="post-tx-id">tx <span class="hash">#' + txId + '</span></span>' +
+            '<span class="post-tx-status confirmed">Confirmed</span>' +
+          '</div>' +
+          '<div class="post-image">' + imageHtml + '</div>' +
+          '<p class="post-caption">' + escHtml(post.caption) + '</p>' +
+          '<div class="post-meta">' +
+            '<span>txn ' + txNum + ' of 21</span>' +
+            '<span>' + timeStr + '</span>' +
+          '</div>' +
+        '</div>';
+
+      return slide;
+    }
+
+    function updateStatusBar(count) {
+      var MAX = 21;
+      var n = Math.min(count, MAX);
+      var pct = Math.round((n / MAX) * 100);
+      var txEl = document.querySelector('.status-value.gold');
+      var fillEl = document.querySelector('.mining-fill');
+      var archiveFill = document.querySelector('.block-progress-fill');
+      var archiveTx = document.querySelector('.current-block-txcount');
+      if (txEl) txEl.textContent = n + ' / ' + MAX;
+      if (fillEl) fillEl.style.width = pct + '%';
+      if (archiveFill) archiveFill.style.width = pct + '%';
+      if (archiveTx) archiveTx.textContent = n + ' / ' + MAX;
+    }
+
+    function loadPosts() {
+      fetch('/api/posts')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var posts = data.posts || [];
+          var track = document.getElementById('feed-track');
+          var genesisSlide = track.querySelector('.post-slide');
+
+          // Insert newest posts before the genesis placeholder
+          for (var i = 0; i < posts.length; i++) {
+            var slide = createPostSlide(posts[i], posts.length - i);
+            track.insertBefore(slide, genesisSlide);
+          }
+
+          updateStatusBar(posts.length);
+          initFeed();
+        })
+        .catch(function(err) {
+          console.log('Failed to load posts:', err);
+          initFeed();
+        });
+    }
+
+    // ============================================================
+    // SWIPE FEED
+    // ============================================================
+    function initFeed() {
       var track = document.getElementById('feed-track');
       var viewport = document.getElementById('feed-viewport');
       var dotsContainer = document.getElementById('feed-dots');
-      var slides = document.querySelectorAll('.post-slide');
-      var cards = document.querySelectorAll('.post-card');
+      var slides = Array.prototype.slice.call(document.querySelectorAll('.post-slide'));
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.post-card'));
       var total = slides.length;
       var currentIndex = 0;
       var startX = 0, currentTranslate = 0, prevTranslate = 0;
       var isDragging = false, startTime = 0;
 
-      // Track read state per slide
       var readState = [];
       for (var i = 0; i < total; i++) {
         readState.push(slides[i].getAttribute('data-read') === 'true');
       }
 
-      // Build dots
       function buildDots() {
         dotsContainer.innerHTML = '';
         for (var i = 0; i < total; i++) {
@@ -317,16 +380,12 @@
       }
 
       function updateDots() {
-        var dots = dotsContainer.querySelectorAll('.feed-dot');
+        var dots = Array.prototype.slice.call(dotsContainer.querySelectorAll('.feed-dot'));
         for (var i = 0; i < dots.length; i++) {
           dots[i].className = 'feed-dot';
-          if (i === currentIndex) {
-            dots[i].classList.add('active-dot');
-          } else if (readState[i]) {
-            dots[i].classList.add('read-dot');
-          } else {
-            dots[i].classList.add('unread-dot');
-          }
+          if (i === currentIndex) dots[i].classList.add('active-dot');
+          else if (readState[i]) dots[i].classList.add('read-dot');
+          else dots[i].classList.add('unread-dot');
         }
       }
 
@@ -335,10 +394,7 @@
           cards[i].classList.remove('active-card', 'read', 'unread');
           if (i === currentIndex) {
             cards[i].classList.add('active-card');
-            if (!readState[i]) {
-              readState[i] = true;
-              slides[i].setAttribute('data-read', 'true');
-            }
+            if (!readState[i]) { readState[i] = true; slides[i].setAttribute('data-read', 'true'); }
             cards[i].classList.add('unread');
           } else if (readState[i]) {
             cards[i].classList.add('read');
@@ -348,7 +404,6 @@
         }
       }
 
-      // --- IndexedDB ---
       var db = null;
       function openDB(cb) {
         var req = indexedDB.open('abc_feed', 2);
@@ -359,6 +414,7 @@
         req.onsuccess = function(e) { db = e.target.result; if (cb) cb(); };
         req.onerror = function() { if (cb) cb(); };
       }
+
       function saveState() {
         if (!db) return;
         var tx = db.transaction('state', 'readwrite');
@@ -366,14 +422,16 @@
         store.put(currentIndex, 'idx');
         store.put(readState, 'read');
       }
+
       function loadState(cb) {
-        if (!db) { cb(0, null); return; }
+        if (!db) { cb(0); return; }
         var tx = db.transaction('state', 'readonly');
         var store = tx.objectStore('state');
         var rIdx = store.get('idx');
         var rRead = store.get('read');
         tx.oncomplete = function() {
           var idx = typeof rIdx.result === 'number' && rIdx.result < total ? rIdx.result : 0;
+          // Only restore read state if length matches (dynamic posts may change count)
           if (Array.isArray(rRead.result) && rRead.result.length === total) {
             readState = rRead.result;
           }
@@ -396,7 +454,7 @@
         if (hint && currentIndex > 0) hint.style.display = 'none';
       }
 
-      function getX(e) { return e.type.includes('mouse') ? e.pageX : e.touches[0].clientX; }
+      function getX(e) { return e.type.indexOf('mouse') >= 0 ? e.pageX : e.touches[0].clientX; }
 
       viewport.addEventListener('touchstart', function(e) {
         startX = getX(e); startTime = Date.now(); isDragging = true;
@@ -438,24 +496,25 @@
 
       buildDots();
       openDB(function() {
-        loadState(function(savedIdx) {
-          goTo(savedIdx, false);
-        });
+        loadState(function(savedIdx) { goTo(savedIdx, false); });
       });
-    })();
+    }
+
+    // Kick off: load posts from server, then init feed
+    loadPosts();
 
     // ============================================================
-    // BOTTOM NAV
+    // BOTTOM NAV — use Array.prototype.slice for mobile compatibility
     // ============================================================
     (function() {
-      var navItems = document.querySelectorAll('.nav-item');
-      var views = document.querySelectorAll('.view');
+      var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
+      var views = Array.prototype.slice.call(document.querySelectorAll('.view'));
       navItems.forEach(function(item) {
         item.addEventListener('click', function() {
-          var targetId = this.getAttribute('data-view');
+          var targetId = item.getAttribute('data-view');
           navItems.forEach(function(n) { n.classList.remove('active'); });
           views.forEach(function(v) { v.classList.remove('active'); });
-          this.classList.add('active');
+          item.classList.add('active');
           document.getElementById(targetId).classList.add('active');
         });
       });
