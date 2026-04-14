@@ -600,8 +600,9 @@ body {
 /* Weekday tracker: S M T W T F S */
 .block-week-days {
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
-  padding: 0.6rem 0.25rem 0;
+  padding: 0.6rem 1.25rem 0.25rem;
   gap: 0.25rem;
 }
 
@@ -742,13 +743,13 @@ body {
   display: none;
 }
 
-/* Floating "Back to Chain" button — always visible */
+/* Floating "Back to Chain" button — always visible inside day viewer */
 .dv-floating-back {
-  position: fixed;
+  position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1010;
+  z-index: 10;
   background: var(--accent);
   color: var(--bg-deep);
   border: none;
