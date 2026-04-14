@@ -697,6 +697,9 @@
       }
 
       // --- Touch / swipe handling ---
+      // We attach touchstart/end on the viewport, but touchmove on the
+      // viewport with passive:false so we can preventDefault when swiping
+      // horizontally (stops the browser from also scrolling vertically).
       var startX = 0, startY = 0, startTime = 0, isDragging = false;
       var isScrolling = false, directionLocked = false;
 
@@ -718,17 +721,20 @@
         if (!directionLocked) {
           var dx = Math.abs(cx - startX);
           var dy = Math.abs(cy - startY);
-          if (dx > 6 || dy > 6) {
+          // Need at least 10px movement to lock direction
+          if (dx > 10 || dy > 10) {
             directionLocked = true;
-            isScrolling = dy > dx;
+            // Horizontal bias: if dx > dy * 0.7, treat as swipe
+            isScrolling = dy > dx * 1.2;
             if (!isScrolling) track.classList.add('dragging');
           }
         }
 
-        // Vertical scroll — let the browser handle it natively
+        // Vertical scroll — let the slide's overflow-y handle it
         if (isScrolling) return;
 
-        // Horizontal swipe — move the track
+        // Horizontal swipe — prevent vertical scroll and move track
+        if (e.cancelable) e.preventDefault();
         currentTranslate = prevTranslate + (cx - startX);
         track.style.transform = 'translateX(' + currentTranslate + 'px)';
       }
@@ -749,7 +755,7 @@
       }
 
       viewport.addEventListener('touchstart', onTouchStart, { passive: true });
-      viewport.addEventListener('touchmove', onTouchMove, { passive: true });
+      viewport.addEventListener('touchmove', onTouchMove, { passive: false });
       viewport.addEventListener('touchend', onTouchEnd, { passive: true });
 
       // --- Close / back handler ---
