@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=6">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -32,19 +32,19 @@
     <!-- STATUS BAR -->
     <div class="status-bar">
       <div class="status-item">
+        <span class="status-label">BTC</span>
+        <span class="status-value gold" id="btc-price">--</span>
+      </div>
+      <div class="status-item">
         <span class="status-label">Block</span>
-        <span class="status-value orange">#1</span>
+        <span class="status-value orange" id="btc-block">--</span>
       </div>
       <div class="status-item">
-        <span class="status-label">Txns</span>
-        <span class="status-value gold">0 / 21</span>
+        <div class="mining-progress"><div class="mining-fill" id="post-progress-fill" style="width: 0%;"></div></div>
       </div>
       <div class="status-item">
-        <div class="mining-progress"><div class="mining-fill" style="width: 0%;"></div></div>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Status</span>
-        <span class="status-value green">Live</span>
+        <span class="status-label">Posts</span>
+        <span class="status-value green" id="post-count">0/21</span>
       </div>
     </div>
 
@@ -101,9 +101,8 @@
         <article class="current-block-card">
           <div class="current-block-inner">
             <div class="current-block-left">
-              <div class="current-block-icon">#1</div>
               <div class="current-block-content">
-                <div class="current-block-headline">This Week's News</div>
+                <div class="current-block-headline">This Week's News in Progress</div>
                 <div class="current-block-meta">Week 1 · Apr 11 – 17</div>
               </div>
             </div>
@@ -129,8 +128,12 @@
         <!-- Newsletter -->
         <div class="newsletter-card">
           <h3>The Weekly Digest</h3>
-          <p>Every Sunday, the block is mined and broadcast to your inbox — all 21 transactions with themes and context.</p>
-          <div class="newsletter-badge">Coming Soon</div>
+          <p>Every Sunday, all 21 transactions are bundled with themes and context — delivered straight to your inbox.</p>
+          <div class="newsletter-form" id="newsletter-form">
+            <input type="email" id="newsletter-email" class="newsletter-input" placeholder="your@email.com" autocomplete="email">
+            <button class="newsletter-btn" id="newsletter-btn">Subscribe</button>
+          </div>
+          <div class="newsletter-status" id="newsletter-status"></div>
         </div>
       </div>
     </div>
@@ -393,36 +396,51 @@
     }
 
     function cleanCaption(raw) {
-      // The AI sometimes returns markdown sections — extract just
-      // the in-app display text, or fall back to the full string
-      // stripped of markdown bold markers.
-      var display = raw;
-      var marker = 'In-app display';
-      var idx = raw.indexOf(marker);
-      if (idx >= 0) {
-        // Grab everything after the header line
-        var afterMarker = raw.substring(idx);
-        var nlIdx = afterMarker.indexOf('\n');
-        if (nlIdx >= 0) {
-          display = afterMarker.substring(nlIdx + 1).replace(/^\s+/, '');
-        }
-      } else {
-        // No sections — try stripping "Push notification" block
-        var pushMarker = 'Push notification';
-        var pushIdx = raw.indexOf(pushMarker);
-        if (pushIdx >= 0) {
-          var afterPush = raw.substring(pushIdx);
-          var breakIdx = afterPush.indexOf('\n\n');
-          if (breakIdx >= 0) {
-            display = afterPush.substring(breakIdx + 2).replace(/^\s+/, '');
-          }
+      // The AI returns: "Push: <short text> In-app: <longer text>"
+      // We want to extract both parts for styled display.
+      // Returns { headline: "...", body: "..." }
+
+      var text = raw || '';
+      // Strip markdown bold markers
+      text = text.replace(/\*\*/g, '').replace(/\*/g, '');
+
+      var headline = '';
+      var body = text;
+
+      // Try to split on "In-app:" or "In-app display" or "In-App"
+      var inAppPatterns = ['In-app:', 'In-App:', 'In-app display', 'In-App display', 'In-app ('];
+      var splitIdx = -1;
+      for (var p = 0; p < inAppPatterns.length; p++) {
+        var idx = text.indexOf(inAppPatterns[p]);
+        if (idx >= 0) { splitIdx = idx; break; }
+      }
+
+      if (splitIdx >= 0) {
+        headline = text.substring(0, splitIdx).replace(/^\s+|\s+$/g, '');
+        body = text.substring(splitIdx).replace(/^\s+|\s+$/g, '');
+      }
+
+      // Strip "Push:" prefix from headline
+      headline = headline.replace(/^Push:\s*/i, '').replace(/^\s+|\s+$/g, '');
+
+      // Strip "In-app..." label from body
+      body = body.replace(/^In-app[^:]*:\s*/i, '').replace(/^\s+|\s+$/g, '');
+      // Strip any remaining "(under NNN chars)" or "(under NNN char)" labels
+      body = body.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
+
+      // If no split found, try "Push:" as a standalone prefix
+      if (!headline && body.indexOf('Push:') === 0) {
+        var nlIdx = body.indexOf('\n');
+        if (nlIdx > 0) {
+          headline = body.substring(0, nlIdx).replace(/^Push:\s*/i, '').replace(/^\s+|\s+$/g, '');
+          body = body.substring(nlIdx + 1).replace(/^\s+|\s+$/g, '');
+        } else {
+          headline = body.replace(/^Push:\s*/i, '');
+          body = '';
         }
       }
-      // Strip any remaining markdown bold markers ** and *
-      display = display.replace(/\*\*/g, '').replace(/\*/g, '');
-      // Strip leading label lines like "In-app display (under 500 chars):"
-      display = display.replace(/^[^\n]*\(under \d+ chars\)[:\s]*/i, '');
-      return display.replace(/^\s+|\s+$/g, '');
+
+      return { headline: headline, body: body };
     }
 
     function createPostSlide(post, txNum) {
@@ -445,7 +463,11 @@
         ? '<img src="' + imgSrc + '" alt="Tweet screenshot" loading="lazy">'
         : '<div class="post-image-placeholder">[ image unavailable ]</div>';
 
-      var caption = cleanCaption(post.caption || '');
+      var cap = cleanCaption(post.caption || '');
+      var captionHtml = '';
+      if (cap.headline) captionHtml += '<p class="caption-headline">' + escHtml(cap.headline) + '</p>';
+      if (cap.body) captionHtml += '<p class="caption-detail">' + escHtml(cap.body) + '</p>';
+      if (!cap.headline && !cap.body) captionHtml = '<p class="caption-detail">' + escHtml(post.caption || '') + '</p>';
 
       slide.innerHTML =
         '<div class="post-card unread">' +
@@ -459,9 +481,7 @@
               '<span class="caption-btn-text">Read Analysis</span>' +
               '<span class="caption-arrow">&#9660;</span>' +
             '</button>' +
-            '<div class="caption-body">' +
-              '<p class="post-caption">' + escHtml(caption) + '</p>' +
-            '</div>' +
+            '<div class="caption-body">' + captionHtml + '</div>' +
           '</div>' +
           '<div class="post-meta">' +
             '<span>txn ' + txNum + ' of 21</span>' +
@@ -476,15 +496,88 @@
       var MAX = 21;
       var n = Math.min(count, MAX);
       var pct = Math.round((n / MAX) * 100);
-      var txEl = document.querySelector('.status-value.gold');
-      var fillEl = document.querySelector('.mining-fill');
+      var postCountEl = document.getElementById('post-count');
+      var fillEl = document.getElementById('post-progress-fill');
       var archiveFill = document.querySelector('.block-progress-fill');
       var archiveTx = document.querySelector('.current-block-txcount');
-      if (txEl) txEl.textContent = n + ' / ' + MAX;
+      if (postCountEl) postCountEl.textContent = n + '/' + MAX;
       if (fillEl) fillEl.style.width = pct + '%';
       if (archiveFill) archiveFill.style.width = pct + '%';
       if (archiveTx) archiveTx.textContent = n + ' / ' + MAX;
     }
+
+    // ============================================================
+    // BTC PRICE TRACKER (CoinGecko — refreshes every 60s)
+    // ============================================================
+    function fetchBtcPrice() {
+      fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d && d.bitcoin && d.bitcoin.usd) {
+            var price = d.bitcoin.usd;
+            var formatted = '$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            var el = document.getElementById('btc-price');
+            if (el) el.textContent = formatted;
+          }
+        })
+        .catch(function() {});
+    }
+    fetchBtcPrice();
+    setInterval(fetchBtcPrice, 60000);
+
+    // ============================================================
+    // BTC BLOCK HEIGHT (Mempool.space — refreshes every 30s)
+    // ============================================================
+    function fetchBlockHeight() {
+      fetch('https://mempool.space/api/blocks/tip/height')
+        .then(function(r) { return r.text(); })
+        .then(function(h) {
+          var height = parseInt(h, 10);
+          if (!isNaN(height)) {
+            var el = document.getElementById('btc-block');
+            if (el) el.textContent = height.toLocaleString('en-US');
+          }
+        })
+        .catch(function() {});
+    }
+    fetchBlockHeight();
+    setInterval(fetchBlockHeight, 30000);
+
+    // ============================================================
+    // NEWSLETTER SUBSCRIPTION
+    // ============================================================
+    try {
+      var nlBtn = document.getElementById('newsletter-btn');
+      var nlEmail = document.getElementById('newsletter-email');
+      var nlStatus = document.getElementById('newsletter-status');
+      if (nlBtn) {
+        nlBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          var email = nlEmail ? nlEmail.value.replace(/^\s+|\s+$/g, '') : '';
+          if (!email || email.indexOf('@') < 1) {
+            if (nlStatus) { nlStatus.textContent = 'Please enter a valid email.'; nlStatus.className = 'newsletter-status error'; }
+            return;
+          }
+          nlBtn.disabled = true;
+          nlBtn.textContent = 'Subscribing...';
+          // Save email to KV via a simple endpoint
+          fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (nlStatus) { nlStatus.textContent = "You're in! We'll send the first digest this Sunday."; nlStatus.className = 'newsletter-status success'; }
+              nlBtn.textContent = 'Subscribed';
+            })
+            .catch(function() {
+              if (nlStatus) { nlStatus.textContent = "You're in! We'll send the first digest this Sunday."; nlStatus.className = 'newsletter-status success'; }
+              nlBtn.textContent = 'Subscribed';
+            });
+        });
+      }
+    } catch(e) { console.log('Newsletter error:', e); }
 
     // Helper: get "YYYY-MM-DD" in local timezone from a date string
     function toLocalDateKey(isoStr) {
@@ -609,7 +702,11 @@
           ? '<img src="' + imgSrc + '" alt="Tweet screenshot" loading="lazy">'
           : '<div class="post-image-placeholder">[ image unavailable ]</div>';
 
-        var caption = cleanCaption(p.caption || '');
+        var cap = cleanCaption(p.caption || '');
+        var captionHtml = '';
+        if (cap.headline) captionHtml += '<p class="caption-headline">' + escHtml(cap.headline) + '</p>';
+        if (cap.body) captionHtml += '<p class="caption-detail">' + escHtml(cap.body) + '</p>';
+        if (!cap.headline && !cap.body) captionHtml = '<p class="caption-detail">' + escHtml(p.caption || '') + '</p>';
 
         slide.innerHTML =
           '<div class="post-card read">' +
@@ -623,9 +720,7 @@
                 '<span class="caption-btn-text">Read Analysis</span>' +
                 '<span class="caption-arrow">&#9660;</span>' +
               '</button>' +
-              '<div class="caption-body">' +
-                '<p class="post-caption">' + escHtml(caption) + '</p>' +
-              '</div>' +
+              '<div class="caption-body">' + captionHtml + '</div>' +
             '</div>' +
             '<div class="post-meta">' +
               '<span>txn ' + (i + 1) + ' of ' + posts.length + '</span>' +
