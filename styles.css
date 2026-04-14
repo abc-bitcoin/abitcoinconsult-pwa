@@ -409,6 +409,21 @@ body {
   margin: 0;
 }
 
+.caption-headline {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.5;
+  margin: 0 0 0.5rem 0;
+}
+
+.caption-detail {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  margin: 0;
+}
+
 .post-meta {
   display: flex;
   align-items: center;
@@ -1092,6 +1107,63 @@ body {
   padding: 0.2rem 0.65rem;
   border: 1px solid var(--gold-dim);
   border-radius: 20px;
+}
+
+.newsletter-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.newsletter-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.newsletter-input:focus {
+  border-color: var(--accent);
+}
+
+.newsletter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.newsletter-btn {
+  background: var(--accent);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.newsletter-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.newsletter-status {
+  font-size: 0.7rem;
+  margin-top: 0.5rem;
+}
+
+.newsletter-status.success {
+  color: #22c55e;
+}
+
+.newsletter-status.error {
+  color: #ef4444;
 }
 
 /* --- BOTTOM NAV --- */
