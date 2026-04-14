@@ -233,13 +233,30 @@ export async function onRequestPost(context) {
     var failed = 0;
     var staleTokens = [];
 
+    // Clean up the caption for the push notification body:
+    // The AI caption may start with "Push: ..." or "In-app: ..." prefixes — strip them
+    var notifBody = caption;
+    // Remove "Push:" prefix and everything before "In-app:" if present
+    if (notifBody.indexOf('Push:') === 0) {
+      notifBody = notifBody.replace(/^Push:\s*/, '');
+    }
+    // If there's an "In-app:" section, only use the text before it for the notification
+    var inAppIdx = notifBody.indexOf('In-app:');
+    if (inAppIdx > 0) {
+      notifBody = notifBody.substring(0, inAppIdx).trim();
+    }
+    // Truncate to 150 chars for the notification preview
+    if (notifBody.length > 150) {
+      notifBody = notifBody.substring(0, 147) + '...';
+    }
+
     // Send in parallel batches of 50 to avoid overwhelming the worker
     var batchSize = 50;
     for (var i = 0; i < tokens.length; i += batchSize) {
       var batch = tokens.slice(i, i + batchSize);
       var results = await Promise.all(
         batch.map(function(token) {
-          return sendOneNotification(token, title, caption.substring(0, 100), imageUrl, projectId, accessToken);
+          return sendOneNotification(token, title, notifBody, imageUrl, projectId, accessToken);
         })
       );
 
