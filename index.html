@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=3">
+  <link rel="stylesheet" href="/styles.css?v=5">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -583,13 +583,12 @@
       var titleEl = document.getElementById('day-viewer-title');
       var closeBtn = document.getElementById('day-viewer-close');
 
-      // Clean up previous instance if any
+      // Clean up previous instance
       if (dayViewerCleanup) { dayViewerCleanup(); dayViewerCleanup = null; }
 
       titleEl.textContent = dayLabel(dateKey);
       track.innerHTML = '';
       dotsContainer.innerHTML = '';
-      track.style.transform = 'translateX(0px)';
 
       // Build post slides
       for (var i = 0; i < posts.length; i++) {
@@ -649,15 +648,24 @@
         '</div>';
       track.appendChild(backSlide);
 
-      // Show the overlay BEFORE measuring widths
+      // Show overlay first so we can measure
       viewer.classList.remove('hidden');
       dayViewerActive = true;
 
-      // Force layout so offsetWidth is available
-      void viewport.offsetWidth;
-
+      // === SET EXPLICIT PIXEL WIDTHS ON EVERY SLIDE ===
+      var PEEK = 40; // px of next card visible
+      var vpW = viewport.offsetWidth;
+      var slideW = vpW - PEEK;
       var allSlides = Array.prototype.slice.call(track.querySelectorAll('.dv-slide'));
       var total = allSlides.length;
+      for (var si = 0; si < total; si++) {
+        // Last slide (back slide) gets full width
+        allSlides[si].style.width = (si === total - 1) ? vpW + 'px' : slideW + 'px';
+        allSlides[si].style.minWidth = allSlides[si].style.width;
+      }
+      // Track width = sum of all slides
+      track.style.width = (slideW * (total - 1) + vpW) + 'px';
+
       var currentIndex = 0;
 
       // Build dots
@@ -674,88 +682,64 @@
         }
       }
 
-      function getSlideWidth() {
-        // Use viewport width minus peek gap (55px), matching the CSS calc
-        return viewport.offsetWidth - 55;
-      }
-
       var prevTranslate = 0, currentTranslate = 0;
 
       function goTo(index) {
         if (index < 0) index = 0;
         if (index >= total) index = total - 1;
         currentIndex = index;
-        var sw = getSlideWidth();
-        currentTranslate = -index * sw;
+        currentTranslate = -index * slideW;
         prevTranslate = currentTranslate;
         track.style.transform = 'translateX(' + currentTranslate + 'px)';
         updateDots();
-        // Scroll each slide back to top when switching
-        for (var s = 0; s < allSlides.length; s++) {
-          if (s !== currentIndex) allSlides[s].scrollTop = 0;
-        }
       }
 
-      // --- Touch / swipe handling ---
-      // We attach touchstart/end on the viewport, but touchmove on the
-      // viewport with passive:false so we can preventDefault when swiping
-      // horizontally (stops the browser from also scrolling vertically).
-      var startX = 0, startY = 0, startTime = 0, isDragging = false;
-      var isScrolling = false, directionLocked = false;
+      // === SIMPLE SWIPE: only decide on touchend, not during move ===
+      var startX = 0, startY = 0, startTime = 0;
+      var endX = 0, endY = 0;
+      var tracking = false;
 
       function onTouchStart(e) {
         if (!e.touches || !e.touches.length) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
+        endX = startX;
+        endY = startY;
         startTime = Date.now();
-        isDragging = true;
-        isScrolling = false;
-        directionLocked = false;
+        tracking = true;
       }
 
       function onTouchMove(e) {
-        if (!isDragging || !e.touches || !e.touches.length) return;
-        var cx = e.touches[0].clientX;
-        var cy = e.touches[0].clientY;
-
-        if (!directionLocked) {
-          var dx = Math.abs(cx - startX);
-          var dy = Math.abs(cy - startY);
-          // Need at least 10px movement to lock direction
-          if (dx > 10 || dy > 10) {
-            directionLocked = true;
-            // Horizontal bias: if dx > dy * 0.7, treat as swipe
-            isScrolling = dy > dx * 1.2;
-            if (!isScrolling) track.classList.add('dragging');
-          }
-        }
-
-        // Vertical scroll — let the slide's overflow-y handle it
-        if (isScrolling) return;
-
-        // Horizontal swipe — prevent vertical scroll and move track
-        if (e.cancelable) e.preventDefault();
-        currentTranslate = prevTranslate + (cx - startX);
-        track.style.transform = 'translateX(' + currentTranslate + 'px)';
+        if (!tracking || !e.touches || !e.touches.length) return;
+        endX = e.touches[0].clientX;
+        endY = e.touches[0].clientY;
       }
 
       function onTouchEnd() {
-        if (!isDragging) return;
-        isDragging = false;
-        track.classList.remove('dragging');
-        if (isScrolling) return;
+        if (!tracking) return;
+        tracking = false;
 
-        var moved = currentTranslate - prevTranslate;
+        var dx = endX - startX;
+        var dy = endY - startY;
+        var absDx = Math.abs(dx);
+        var absDy = Math.abs(dy);
         var elapsed = Date.now() - startTime || 1;
-        var vel = Math.abs(moved) / elapsed;
 
-        if (moved < -40 || (moved < -15 && vel > 0.25)) goTo(currentIndex + 1);
-        else if (moved > 40 || (moved > 15 && vel > 0.25)) goTo(currentIndex - 1);
-        else goTo(currentIndex);
+        // Only trigger horizontal swipe if:
+        // - horizontal movement > 50px AND more horizontal than vertical
+        // OR quick flick (> 30px in < 300ms) that's more horizontal
+        if (absDx > absDy && absDx > 50) {
+          if (dx < 0) goTo(currentIndex + 1); // swipe left = next
+          else goTo(currentIndex - 1); // swipe right = prev
+        } else if (absDx > absDy && absDx > 30 && elapsed < 300) {
+          if (dx < 0) goTo(currentIndex + 1);
+          else goTo(currentIndex - 1);
+        }
+        // Otherwise: it was a vertical scroll or a tap — do nothing
       }
 
       viewport.addEventListener('touchstart', onTouchStart, { passive: true });
-      viewport.addEventListener('touchmove', onTouchMove, { passive: false });
+      viewport.addEventListener('touchmove', onTouchMove, { passive: true });
       viewport.addEventListener('touchend', onTouchEnd, { passive: true });
 
       // --- Close / back handler ---
@@ -769,14 +753,12 @@
             allReadIds.push(posts[k].id);
           }
         }
-        // Update the banner
         if (bannerCard) {
           bannerCard.classList.remove('chain-unopened');
           bannerCard.classList.add('chain-read');
           var badge = bannerCard.querySelector('.chain-unopened-badge');
           if (badge) { badge.textContent = 'Read'; badge.className = 'chain-read-badge'; }
         }
-        // Persist to IndexedDB
         try {
           var rq = indexedDB.open('abc_feed', 2);
           rq.onsuccess = function(e) {
@@ -786,7 +768,6 @@
           };
         } catch(e) {}
 
-        // Clean up
         viewport.removeEventListener('touchstart', onTouchStart);
         viewport.removeEventListener('touchmove', onTouchMove);
         viewport.removeEventListener('touchend', onTouchEnd);
@@ -801,14 +782,24 @@
       var backBtnEl = document.getElementById('dv-back-btn');
       if (backBtnEl) backBtnEl.addEventListener('click', closeDayViewer);
 
-      function onResize() { goTo(currentIndex); }
+      function onResize() {
+        vpW = viewport.offsetWidth;
+        slideW = vpW - PEEK;
+        for (var ri = 0; ri < total; ri++) {
+          allSlides[ri].style.width = (ri === total - 1) ? vpW + 'px' : slideW + 'px';
+          allSlides[ri].style.minWidth = allSlides[ri].style.width;
+        }
+        track.style.width = (slideW * (total - 1) + vpW) + 'px';
+        goTo(currentIndex);
+      }
       window.addEventListener('resize', onResize);
 
       dayViewerCleanup = closeDayViewer;
-
-      // Start at first slide
       goTo(0);
     }
+
+    // Global: today's post IDs so Feed read state can sync to Chain
+    var todayPostIds = [];
 
     function loadPosts() {
       fetch('/api/posts')
@@ -826,7 +817,9 @@
 
           // --- FEED: Only show today's posts ---
           var todayPosts = grouped.groups[today] || [];
+          todayPostIds = [];
           for (var i = 0; i < todayPosts.length; i++) {
+            todayPostIds.push(todayPosts[i].id);
             var slide = createPostSlide(todayPosts[i], i + 1);
             track.insertBefore(slide, caughtUpSlide);
           }
@@ -999,6 +992,25 @@
         var store = tx.objectStore('state');
         store.put(currentIndex, 'idx');
         store.put(readState, 'read');
+
+        // Sync Feed read state → Chain read IDs so banners update
+        if (todayPostIds.length > 0) {
+          var getReq = store.get('chainRead');
+          getReq.onsuccess = function() {
+            var chainIds = Array.isArray(getReq.result) ? getReq.result : [];
+            var changed = false;
+            for (var r = 0; r < readState.length; r++) {
+              if (readState[r] && todayPostIds[r] && chainIds.indexOf(todayPostIds[r]) < 0) {
+                chainIds.push(todayPostIds[r]);
+                changed = true;
+              }
+            }
+            if (changed) {
+              var tx2 = db.transaction('state', 'readwrite');
+              tx2.objectStore('state').put(chainIds, 'chainRead');
+            }
+          };
+        }
       }
 
       function loadState(cb) {
