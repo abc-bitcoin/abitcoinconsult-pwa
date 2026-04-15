@@ -273,58 +273,93 @@
 
       var VAPID_KEY = 'BPWIcxJ_zXU6Tpz1lSN3ZJriX7H78g28XY4AHBFaNWUAyjF6nrR-_iHhItzO3bk5KJY2n4KpDAy_UVxyGUZp23E';
 
+      // Generate or retrieve a persistent device ID for deduplication
+      function getDeviceId(cb) {
+        try {
+          var req = indexedDB.open('abc_feed', 2);
+          req.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+          };
+          req.onsuccess = function(e) {
+            var db = e.target.result;
+            var tx = db.transaction('state', 'readonly');
+            var gr = tx.objectStore('state').get('device_id');
+            gr.onsuccess = function() {
+              if (gr.result) { cb(gr.result, db); return; }
+              // Generate new device ID
+              var id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+              var wtx = db.transaction('state', 'readwrite');
+              wtx.objectStore('state').put(id, 'device_id');
+              wtx.oncomplete = function() { cb(id, db); };
+              wtx.onerror = function() { cb(id, db); };
+            };
+            gr.onerror = function() { cb('unknown', db); };
+          };
+          req.onerror = function() { cb('unknown', null); };
+        } catch(e) { cb('unknown', null); }
+      }
+
       function getAndSaveToken() {
+        // Step 1: Get FCM token from Firebase
         navigator.serviceWorker.ready.then(function(swReg) {
           return messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
         }).then(function(token) {
-            if (token) {
-              console.log('FCM Token obtained:', token.substring(0, 20) + '...');
+          if (!token) {
+            console.log('No FCM token returned');
+            if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
+            return;
+          }
+          console.log('FCM Token obtained:', token.substring(0, 20) + '...');
+
+          // Step 2: Get device ID and old token from IDB
+          getDeviceId(function(deviceId, db) {
+            var oldToken = '';
+            if (db) {
               try {
-                var req = indexedDB.open('abc_feed', 2);
-                req.onsuccess = function(e) {
-                  var db = e.target.result;
-                  var rtx = db.transaction('state', 'readonly');
-                  var getReq = rtx.objectStore('state').get('fcm_token');
-                  getReq.onsuccess = function() {
-                    var oldToken = getReq.result || '';
-                    try {
-                      var wtx = db.transaction('state', 'readwrite');
-                      wtx.objectStore('state').put(token, 'fcm_token');
-                    } catch(e2) {}
-                    fetch('/api/token', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ token: token, oldToken: oldToken })
-                    }).then(function(res) {
-                      if (res.ok) {
-                        console.log('Token saved');
-                        if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(true);
-                      } else {
-                        console.log('Token save failed:', res.status);
-                        if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-                      }
-                    }).catch(function(err) {
-                      console.log('Token save error:', err);
-                      if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-                    });
-                  };
-                  req.onerror = function() {
-                    if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-                  };
+                var tx = db.transaction('state', 'readonly');
+                var gr = tx.objectStore('state').get('fcm_token');
+                gr.onsuccess = function() {
+                  oldToken = gr.result || '';
+                  saveToken(token, oldToken, deviceId, db);
                 };
-              } catch(e) {
-                console.log('IDB error:', e);
+                gr.onerror = function() { saveToken(token, '', deviceId, db); };
+              } catch(e) { saveToken(token, '', deviceId, db); }
+            } else {
+              saveToken(token, '', deviceId, null);
+            }
+          });
+
+          function saveToken(token, oldToken, deviceId, db) {
+            // Save new token to IDB
+            if (db) {
+              try {
+                var wtx = db.transaction('state', 'readwrite');
+                wtx.objectStore('state').put(token, 'fcm_token');
+              } catch(e) {}
+            }
+            // Step 3: Send token + deviceId to server
+            fetch('/api/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: token, oldToken: oldToken, deviceId: deviceId })
+            }).then(function(res) {
+              if (res.ok) {
+                console.log('Token saved with deviceId:', deviceId);
+                if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(true);
+              } else {
+                console.log('Token save failed:', res.status);
                 if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
               }
-            } else {
-              console.log('No FCM token returned');
+            }).catch(function(err) {
+              console.log('Token save error:', err);
               if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-            }
-          })
-          .catch(function(err) {
-            console.log('FCM token error:', err);
-            if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-          });
+            });
+          }
+        }).catch(function(err) {
+          console.log('FCM token error:', err);
+          if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
+        });
       }
 
       messaging.onMessage(function(payload) {
@@ -450,6 +485,13 @@
                 if (window._abcGetToken) window._abcGetToken();
               }, 2000);
             }
+            // Timeout fallback: if still "Enabling..." after 8 seconds, reset
+            setTimeout(function() {
+              var btn = document.querySelector('.js-notify-btn');
+              if (btn && btn.textContent.indexOf('Enabling') >= 0) {
+                setAllBtns('Tap to Retry', false, false);
+              }
+            }, 8000);
           } else if (perm === 'denied') {
             setAllBtns('Blocked — enable in Settings', true, false);
           } else {
