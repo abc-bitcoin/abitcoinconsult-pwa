@@ -406,7 +406,8 @@
       // Handles all caption formats — old and new.
       // Returns { headline: "...", body: "..." }
 
-      var text = (raw || '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^\s+|\s+$/g, '');
+      // Normalize Windows line endings first, then clean up
+      var text = (raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^\s+|\s+$/g, '');
       if (!text) return { headline: '', body: '' };
 
       // Use lowercase copy for case-insensitive searching only
