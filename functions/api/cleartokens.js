@@ -7,8 +7,9 @@
 
 export async function onRequestPost(context) {
   try {
-    var body = await context.request.json();
-    var password = (body.password || '').trim();
+    // Accept FormData (same as send.js which is known to work)
+    var formData = await context.request.formData();
+    var password = (formData.get('password') || '').trim();
     var adminPw = (context.env.ADMIN_PASSWORD || '').trim();
 
     if (!password || password !== adminPw) {
