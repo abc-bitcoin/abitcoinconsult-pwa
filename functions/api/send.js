@@ -181,6 +181,23 @@ export async function onRequestPost(context) {
       });
     }
 
+    // --- DELETE POST action ---
+    if (action === 'deletepost') {
+      var postId = formData.get('postId') || '';
+      if (!postId || postId.indexOf('post_') !== 0) {
+        return new Response(JSON.stringify({ error: 'Invalid post ID' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      var kv3 = context.env.ABC_TOKENS;
+      await kv3.delete(postId);
+      return new Response(JSON.stringify({ ok: true, deleted: postId }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     if (!caption) {
       return new Response(JSON.stringify({ error: 'Caption is required' }), {
         status: 400,
