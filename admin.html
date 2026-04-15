@@ -441,7 +441,8 @@
       var clearTokensStatus = document.getElementById('clear-tokens-status');
       var clearTokensPw = document.getElementById('clear-tokens-pw');
       clearTokensBtn.addEventListener('click', function() {
-        var pw = clearTokensPw ? clearTokensPw.value.trim() : storedPassword;
+        // Use storedPassword first (already verified to work), fall back to typed field
+        var pw = storedPassword || (clearTokensPw ? clearTokensPw.value.trim() : '');
         if (!pw) {
           showStatus(clearTokensStatus, 'Please enter your admin password above.', 'error');
           return;
@@ -449,10 +450,12 @@
         if (!confirm('This will delete ALL subscriber tokens. Everyone will need to re-enable notifications. Continue?')) return;
         clearTokensBtn.disabled = true;
         clearTokensBtn.textContent = 'Clearing...';
+        // Use FormData — same mechanism as send.js which is verified to work
+        var ctFd = new FormData();
+        ctFd.append('password', pw);
         fetch('/api/cleartokens', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pw })
+          body: ctFd
         })
         .then(function(r) {
           var status = r.status;
