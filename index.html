@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/styles.css?v=10">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -337,64 +337,136 @@
         }
       });
 
+      // Delete the FCM token from server and IDB (disable notifications)
+      window._abcDeleteToken = function(cb) {
+        try {
+          var rq = indexedDB.open('abc_feed', 2);
+          rq.onsuccess = function(e) {
+            var db = e.target.result;
+            var rtx = db.transaction('state', 'readonly');
+            var getReq = rtx.objectStore('state').get('fcm_token');
+            getReq.onsuccess = function() {
+              var token = getReq.result || '';
+              if (token) {
+                // Delete from server
+                fetch('/api/deletetoken', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: token })
+                }).catch(function() {});
+                // Delete from IDB
+                try {
+                  var wtx = db.transaction('state', 'readwrite');
+                  wtx.objectStore('state').delete('fcm_token');
+                } catch(e2) {}
+                // Also call Firebase deleteToken
+                try {
+                  messaging.deleteToken().catch(function() {});
+                } catch(e3) {}
+              }
+              if (cb) cb();
+            };
+          };
+        } catch(e) { if (cb) cb(); }
+      };
+
       // Expose getAndSaveToken so the notification handler outside can call it
       window._abcGetToken = getAndSaveToken;
     })();
     } catch(e) { console.log('Firebase error:', e); }
 
     // ============================================================
-    // NOTIFICATION BUTTON — separate from Firebase so it always works
+    // NOTIFICATION BUTTONS — enable/disable toggle, works on all buttons
     // ============================================================
     try {
     (function() {
-      var notifyBtn = document.getElementById('notify-btn');
-      if (!notifyBtn) return;
+      // All notify buttons across all views
+      function getAllNotifyBtns() {
+        return Array.prototype.slice.call(document.querySelectorAll('#notify-btn, #notify-btn-android, #notify-btn-fallback'));
+      }
 
-      function saveTokenWithFeedback() {
-        if (!window._abcGetToken) {
-          notifyBtn.textContent = 'Permission granted — token pending';
-          console.log('Firebase not ready — _abcGetToken missing');
-          // Retry after Firebase might have loaded
-          setTimeout(function() {
-            if (window._abcGetToken) {
-              window._abcGetToken();
-              notifyBtn.textContent = 'Notifications Enabled \u2713';
-            } else {
-              console.log('Firebase still not available for token');
-            }
-          }, 3000);
+      function setAllBtns(text, disabled, isEnabled) {
+        var btns = getAllNotifyBtns();
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].textContent = text;
+          btns[i].disabled = !!disabled;
+          if (isEnabled) {
+            btns[i].classList.add('notify-enabled');
+          } else {
+            btns[i].classList.remove('notify-enabled');
+          }
+        }
+      }
+
+      function checkInitialState() {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        // Check if we have a token stored
+        try {
+          var rq = indexedDB.open('abc_feed', 2);
+          rq.onsuccess = function(e) {
+            var db = e.target.result;
+            var tx = db.transaction('state', 'readonly');
+            var req = tx.objectStore('state').get('fcm_token');
+            req.onsuccess = function() {
+              if (req.result) {
+                setAllBtns('Notifications On — Tap to Disable', false, true);
+              }
+            };
+          };
+        } catch(e) {}
+      }
+
+      function handleNotifyClick() {
+        var btns = getAllNotifyBtns();
+        if (!btns.length) return;
+        var isEnabled = btns[0].classList.contains('notify-enabled');
+
+        if (isEnabled) {
+          // DISABLE — remove token
+          setAllBtns('Disabling...', true, false);
+          if (window._abcDeleteToken) {
+            window._abcDeleteToken(function() {
+              setAllBtns('Enable Notifications', false, false);
+            });
+          } else {
+            setAllBtns('Enable Notifications', false, false);
+          }
           return;
         }
-        window._abcGetToken();
-        notifyBtn.textContent = 'Notifications Enabled \u2713';
-      }
 
-      // Check if already granted
-      if ('Notification' in window && Notification.permission === 'granted') {
-        notifyBtn.textContent = 'Notifications Enabled \u2713';
-        notifyBtn.disabled = true;
-        saveTokenWithFeedback();
-        return;
-      }
-
-      notifyBtn.addEventListener('click', function() {
+        // ENABLE — request permission + get token
         if (!('Notification' in window)) {
-          alert('Notifications are not supported in this browser. If you are on iPhone, you need to install the app to your home screen first, then enable notifications.');
+          alert('Notifications are not supported in this browser. On iPhone, install the app to your home screen first.');
           return;
         }
-        notifyBtn.textContent = 'Requesting...';
+        setAllBtns('Requesting...', true, false);
         Notification.requestPermission().then(function(perm) {
           if (perm === 'granted') {
-            notifyBtn.disabled = true;
-            saveTokenWithFeedback();
+            if (window._abcGetToken) {
+              window._abcGetToken();
+            }
+            setAllBtns('Notifications On — Tap to Disable', false, true);
           } else if (perm === 'denied') {
-            notifyBtn.textContent = 'Notifications Blocked';
-            notifyBtn.disabled = true;
+            setAllBtns('Notifications Blocked', true, false);
           } else {
-            notifyBtn.textContent = 'Enable Notifications';
+            setAllBtns('Enable Notifications', false, false);
           }
+        }).catch(function() {
+          setAllBtns('Enable Notifications', false, false);
         });
-      });
+      }
+
+      // Wire up all notify buttons
+      var btns = getAllNotifyBtns();
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleNotifyClick();
+        });
+      }
+
+      checkInitialState();
     })();
     } catch(e) { console.log('Notify btn error:', e); }
 
