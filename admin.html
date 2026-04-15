@@ -475,8 +475,9 @@
               showStatus(clearTokensStatus, 'Done — deleted ' + d.deleted + ' token(s). Re-enable notifications on your phone now.', 'success');
               document.getElementById('sub-count').textContent = 'Subscribers: 0';
             } else if (result.status === 401) {
-              var hint = d.hint ? ' (' + d.hint + ')' : '';
-              showStatus(clearTokensStatus, 'Wrong password' + hint + '. Check your Cloudflare ADMIN_PASSWORD secret.', 'error');
+              var dbg = d.debug || {};
+              var info = 'Received: ' + dbg.receivedLen + ' chars (starts "' + (dbg.receivedFirst2||'') + '..."), Stored: ' + dbg.storedLen + ' chars (starts "' + (dbg.storedFirst2||'') + '..."), Exists: ' + dbg.storedExists;
+              showStatus(clearTokensStatus, 'Password mismatch. ' + info, 'error');
             } else {
               showStatus(clearTokensStatus, 'Error: ' + (d.error || 'Unknown'), 'error');
             }
