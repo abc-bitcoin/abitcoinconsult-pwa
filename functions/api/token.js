@@ -20,9 +20,16 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Store token in KV. Key = token itself (deduplicates automatically).
-    // Value = timestamp of when it was registered.
     var kv = context.env.ABC_TOKENS;
+
+    // If an oldToken is provided and different from the new one, delete it
+    // This prevents duplicate notifications when a device re-registers
+    var oldToken = body.oldToken;
+    if (oldToken && typeof oldToken === 'string' && oldToken !== token && oldToken.length > 20) {
+      try { await kv.delete(oldToken); } catch(e) {}
+    }
+
+    // Store token. Key = token itself (deduplicates automatically).
     await kv.put(token, JSON.stringify({
       registered: new Date().toISOString(),
       ua: context.request.headers.get('User-Agent') || 'unknown'
