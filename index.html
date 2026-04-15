@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=6">
+  <link rel="stylesheet" href="/styles.css?v=7">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -219,38 +219,45 @@
       function getAndSaveToken() {
         var nb = document.getElementById('notify-btn');
         if (nb) nb.textContent = 'Getting token...';
-        // Must pass our SW registration — Firebase defaults to
-        // /firebase-messaging-sw.js which doesn't exist.
         navigator.serviceWorker.ready.then(function(swReg) {
-          console.log('Using SW registration:', swReg.scope);
           return messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
         }).then(function(token) {
             if (token) {
               console.log('FCM Token obtained:', token.substring(0, 20) + '...');
+              // Read old token from IDB first so we can delete it server-side
+              // This fixes duplicate notifications from multiple registrations
               try {
                 var req = indexedDB.open('abc_feed', 2);
                 req.onsuccess = function(e) {
                   var db = e.target.result;
-                  var tx = db.transaction('state', 'readwrite');
-                  tx.objectStore('state').put(token, 'fcm_token');
+                  var rtx = db.transaction('state', 'readonly');
+                  var getReq = rtx.objectStore('state').get('fcm_token');
+                  getReq.onsuccess = function() {
+                    var oldToken = getReq.result || '';
+                    // Save new token to IDB
+                    try {
+                      var wtx = db.transaction('state', 'readwrite');
+                      wtx.objectStore('state').put(token, 'fcm_token');
+                    } catch(e2) {}
+                    // Send new token + old token to server for cleanup
+                    fetch('/api/token', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: token, oldToken: oldToken })
+                    }).then(function(res) {
+                      if (res.ok) {
+                        console.log('Token saved, old token cleaned up');
+                        if (nb) nb.textContent = 'Notifications Enabled \u2713';
+                      } else {
+                        if (nb) nb.textContent = 'Error saving token';
+                      }
+                    }).catch(function(err) {
+                      console.log('Token save error:', err);
+                      if (nb) nb.textContent = 'Token save failed';
+                    });
+                  };
                 };
-              } catch(e) { console.log('IDB token save error:', e); }
-              fetch('/api/token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: token })
-              }).then(function(res) {
-                if (res.ok) {
-                  console.log('Token saved to server');
-                  if (nb) nb.textContent = 'Notifications Enabled \u2713';
-                } else {
-                  console.log('Token save failed:', res.status);
-                  if (nb) nb.textContent = 'Error saving token';
-                }
-              }).catch(function(err) {
-                console.log('Token save error:', err);
-                if (nb) nb.textContent = 'Token save failed';
-              });
+              } catch(e) { console.log('IDB token error:', e); }
             } else {
               console.log('No FCM token returned');
               if (nb) nb.textContent = 'Token unavailable';
@@ -396,48 +403,38 @@
     }
 
     function cleanCaption(raw) {
-      // The AI returns: "Push: <short text> In-app: <longer text>"
-      // We want to extract both parts for styled display.
+      // New format from generate.js: "headline\n\nanalysis"
+      // Old format (legacy posts): "Push: ...\n\nIn-app: ..."
       // Returns { headline: "...", body: "..." }
 
-      var text = raw || '';
-      // Strip markdown bold markers
-      text = text.replace(/\*\*/g, '').replace(/\*/g, '');
+      var text = (raw || '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^\s+|\s+$/g, '');
+      if (!text) return { headline: '', body: '' };
 
-      var headline = '';
-      var body = text;
+      // Strip any legacy label prefixes aggressively
+      text = text.replace(/^Push\s*notification[^:]*:\s*/i, '');
+      text = text.replace(/^Push:\s*/i, '');
 
-      // Try to split on "In-app:" or "In-app display" or "In-App"
+      // Check for legacy "In-app" section
+      var inAppIdx = -1;
       var inAppPatterns = ['In-app:', 'In-App:', 'In-app display', 'In-App display', 'In-app ('];
-      var splitIdx = -1;
       for (var p = 0; p < inAppPatterns.length; p++) {
         var idx = text.indexOf(inAppPatterns[p]);
-        if (idx >= 0) { splitIdx = idx; break; }
+        if (idx >= 0) { inAppIdx = idx; break; }
       }
 
-      if (splitIdx >= 0) {
-        headline = text.substring(0, splitIdx).replace(/^\s+|\s+$/g, '');
-        body = text.substring(splitIdx).replace(/^\s+|\s+$/g, '');
-      }
+      var headline = '';
+      var body = '';
 
-      // Strip "Push:" prefix from headline
-      headline = headline.replace(/^Push:\s*/i, '').replace(/^\s+|\s+$/g, '');
-
-      // Strip "In-app..." label from body
-      body = body.replace(/^In-app[^:]*:\s*/i, '').replace(/^\s+|\s+$/g, '');
-      // Strip any remaining "(under NNN chars)" or "(under NNN char)" labels
-      body = body.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
-
-      // If no split found, try "Push:" as a standalone prefix
-      if (!headline && body.indexOf('Push:') === 0) {
-        var nlIdx = body.indexOf('\n');
-        if (nlIdx > 0) {
-          headline = body.substring(0, nlIdx).replace(/^Push:\s*/i, '').replace(/^\s+|\s+$/g, '');
-          body = body.substring(nlIdx + 1).replace(/^\s+|\s+$/g, '');
-        } else {
-          headline = body.replace(/^Push:\s*/i, '');
-          body = '';
-        }
+      if (inAppIdx >= 0) {
+        // Legacy format — split at In-app marker
+        headline = text.substring(0, inAppIdx).replace(/^\s+|\s+$/g, '');
+        body = text.substring(inAppIdx).replace(/^In-app[^:]*:\s*/i, '').replace(/^\s+|\s+$/g, '');
+        body = body.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
+      } else {
+        // New clean format: first paragraph = headline, rest = body
+        var parts = text.split(/\n\n+/);
+        headline = (parts[0] || '').replace(/^\s+|\s+$/g, '');
+        body = parts.slice(1).join('\n\n').replace(/^\s+|\s+$/g, '');
       }
 
       return { headline: headline, body: body };
@@ -469,6 +466,12 @@
       if (cap.body) captionHtml += '<p class="caption-detail">' + escHtml(cap.body) + '</p>';
       if (!cap.headline && !cap.body) captionHtml = '<p class="caption-detail">' + escHtml(post.caption || '') + '</p>';
 
+      // Source link from X profile
+      var username = (post.username || '').replace(/^@/, '');
+      var sourceHtml = username
+        ? '<a class="post-source" href="https://x.com/' + username + '" target="_blank" rel="noopener">Source: @' + username + '</a>'
+        : '';
+
       slide.innerHTML =
         '<div class="post-card unread">' +
           '<div class="post-tx-bar">' +
@@ -476,6 +479,7 @@
             '<span class="post-tx-status confirmed">Confirmed</span>' +
           '</div>' +
           '<div class="post-image">' + imageHtml + '</div>' +
+          (sourceHtml ? '<div class="post-source-wrap">' + sourceHtml + '</div>' : '') +
           '<div class="caption-toggle">' +
             '<button class="caption-btn" onclick="this.parentNode.classList.toggle(\'open\')">' +
               '<span class="caption-btn-text">Read Analysis</span>' +
@@ -708,6 +712,11 @@
         if (cap.body) captionHtml += '<p class="caption-detail">' + escHtml(cap.body) + '</p>';
         if (!cap.headline && !cap.body) captionHtml = '<p class="caption-detail">' + escHtml(p.caption || '') + '</p>';
 
+        var dvUsername = (p.username || '').replace(/^@/, '');
+        var dvSourceHtml = dvUsername
+          ? '<a class="post-source" href="https://x.com/' + dvUsername + '" target="_blank" rel="noopener">Source: @' + dvUsername + '</a>'
+          : '';
+
         slide.innerHTML =
           '<div class="post-card read">' +
             '<div class="post-tx-bar">' +
@@ -715,6 +724,7 @@
               '<span class="post-tx-status confirmed">Confirmed</span>' +
             '</div>' +
             '<div class="post-image">' + imageHtml + '</div>' +
+            (dvSourceHtml ? '<div class="post-source-wrap">' + dvSourceHtml + '</div>' : '') +
             '<div class="caption-toggle">' +
               '<button class="caption-btn" onclick="this.parentNode.classList.toggle(\'open\')">' +
                 '<span class="caption-btn-text">Read Analysis</span>' +
