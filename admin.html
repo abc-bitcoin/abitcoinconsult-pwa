@@ -207,6 +207,8 @@
       <label for="caption-input">Caption (edit or write your own)</label>
       <textarea id="caption-input" placeholder="AI-generated caption will appear here, or write your own..."></textarea>
 
+      <input type="hidden" id="tweet-username" value="">
+
       <button class="btn btn-green" id="send-btn">Send Notification</button>
       <div class="status" id="send-status"></div>
 
@@ -320,7 +322,14 @@
           generateBtn.textContent = 'Generate AI Caption';
           if (data.caption) {
             captionInput.value = data.caption;
-            showStatus(generateStatus, 'Caption generated! Edit it if you want, then hit Send.', 'success');
+            // Store extracted username for the source link
+            if (data.username) {
+              document.getElementById('tweet-username').value = data.username;
+              showStatus(generateStatus, 'Caption generated! Source: ' + data.username + '. Edit if needed, then Send.', 'success');
+            } else {
+              document.getElementById('tweet-username').value = '';
+              showStatus(generateStatus, 'Caption generated! Edit it if you want, then hit Send.', 'success');
+            }
           } else {
             showStatus(generateStatus, 'Error: ' + (data.error || 'Unknown'), 'error');
           }
@@ -356,6 +365,8 @@
         fd.append('password', storedPassword);
         fd.append('caption', caption);
         fd.append('image', selectedFile);
+        var username = (document.getElementById('tweet-username').value || '').trim();
+        if (username) fd.append('username', username);
 
         fetch('/api/send', {
           method: 'POST',
