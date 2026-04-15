@@ -450,10 +450,13 @@
         if (!confirm('This will delete ALL subscriber tokens. Everyone will need to re-enable notifications. Continue?')) return;
         clearTokensBtn.disabled = true;
         clearTokensBtn.textContent = 'Clearing...';
-        fetch('/api/cleartokens', {
+        // Use /api/send with action=cleartokens — same FormData that send works with
+        var ctFd = new FormData();
+        ctFd.append('password', pw);
+        ctFd.append('action', 'cleartokens');
+        fetch('/api/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'password=' + encodeURIComponent(pw)
+          body: ctFd
         })
         .then(function(r) {
           var status = r.status;
