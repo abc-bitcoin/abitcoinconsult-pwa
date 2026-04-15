@@ -216,6 +216,13 @@
 
       <div class="history-title">Recent Sends</div>
       <div id="history"></div>
+
+      <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid #1a1a2a;">
+        <div class="history-title">Notification Subscribers</div>
+        <p style="font-size:0.78rem; color:#555; margin-bottom:0.75rem;">If you're receiving duplicate notifications, use this to wipe all registered tokens and re-subscribe once from your phone.</p>
+        <button class="btn" id="clear-tokens-btn" style="background:#1a1a2a; border:1px solid #333; color:#888; font-size:0.8rem; padding:0.6rem;">Clear All Subscriber Tokens</button>
+        <div class="status" id="clear-tokens-status"></div>
+      </div>
     </div>
   </div>
 
@@ -425,6 +432,36 @@
           sendBtn.disabled = false;
           sendBtn.textContent = 'Send Notification';
           showStatus(sendStatus, 'Network error: ' + err.message, 'error');
+        });
+      });
+
+      // --- Clear All Tokens ---
+      var clearTokensBtn = document.getElementById('clear-tokens-btn');
+      var clearTokensStatus = document.getElementById('clear-tokens-status');
+      clearTokensBtn.addEventListener('click', function() {
+        if (!confirm('This will delete ALL subscriber tokens. Everyone will need to re-enable notifications. Continue?')) return;
+        clearTokensBtn.disabled = true;
+        clearTokensBtn.textContent = 'Clearing...';
+        fetch('/api/cleartokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: storedPassword })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          clearTokensBtn.disabled = false;
+          clearTokensBtn.textContent = 'Clear All Subscriber Tokens';
+          if (d.ok) {
+            showStatus(clearTokensStatus, 'Done — deleted ' + d.deleted + ' token(s). Re-enable notifications on your phone now.', 'success');
+            document.getElementById('sub-count').textContent = 'Subscribers: 0';
+          } else {
+            showStatus(clearTokensStatus, 'Error: ' + (d.error || 'Unknown'), 'error');
+          }
+        })
+        .catch(function(err) {
+          clearTokensBtn.disabled = false;
+          clearTokensBtn.textContent = 'Clear All Subscriber Tokens';
+          showStatus(clearTokensStatus, 'Network error: ' + err.message, 'error');
         });
       });
 
