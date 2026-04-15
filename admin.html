@@ -450,12 +450,10 @@
         if (!confirm('This will delete ALL subscriber tokens. Everyone will need to re-enable notifications. Continue?')) return;
         clearTokensBtn.disabled = true;
         clearTokensBtn.textContent = 'Clearing...';
-        // Use FormData — same mechanism as send.js which is verified to work
-        var ctFd = new FormData();
-        ctFd.append('password', pw);
         fetch('/api/cleartokens', {
           method: 'POST',
-          body: ctFd
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'password=' + encodeURIComponent(pw)
         })
         .then(function(r) {
           var status = r.status;
