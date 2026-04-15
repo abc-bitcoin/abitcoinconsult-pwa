@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -218,6 +218,17 @@
       <div id="history"></div>
 
       <div style="margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid #1a1a2a;">
+        <div class="history-title">Weekly Digest</div>
+        <p style="font-size:0.78rem; color:#555; margin-bottom:0.75rem;">Generate and send a cohesive weekly digest email to all subscribers.</p>
+        <button class="btn" id="digest-preview-btn" style="background:linear-gradient(135deg, #4a90e2, #357abd); color:#fff; margin-bottom:0.6rem;">Preview Digest</button>
+        <button class="btn btn-green" id="digest-send-btn" style="margin-bottom:0.6rem;">Send Digest</button>
+        <div class="status" id="digest-status"></div>
+        <div id="digest-preview-container" style="display:none; margin-top:1rem; border:1px solid #2a2a3a; border-radius:8px; background:#12121e; padding:1rem; max-height:400px; overflow-y:auto;">
+          <div id="digest-preview-content"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #1a1a2a;">
         <div class="history-title">Notification Subscribers</div>
         <p style="font-size:0.78rem; color:#555; margin-bottom:0.75rem;">If you're receiving duplicate notifications, use this to wipe all registered tokens and re-subscribe once from your phone.</p>
         <input type="password" id="clear-tokens-pw" placeholder="Re-enter admin password" style="margin-bottom:0.6rem;">
@@ -433,6 +444,106 @@
           sendBtn.disabled = false;
           sendBtn.textContent = 'Send Notification';
           showStatus(sendStatus, 'Network error: ' + err.message, 'error');
+        });
+      });
+
+      // --- Weekly Digest ---
+      var digestPreviewBtn = document.getElementById('digest-preview-btn');
+      var digestSendBtn = document.getElementById('digest-send-btn');
+      var digestStatus = document.getElementById('digest-status');
+      var digestPreviewContainer = document.getElementById('digest-preview-container');
+      var digestPreviewContent = document.getElementById('digest-preview-content');
+
+      digestPreviewBtn.addEventListener('click', function() {
+        var pw = storedPassword;
+        if (!pw) {
+          showStatus(digestStatus, 'Please enter your admin password above.', 'error');
+          return;
+        }
+        digestPreviewBtn.disabled = true;
+        digestPreviewBtn.textContent = 'Generating...';
+        showStatus(digestStatus, 'Generating weekly digest preview...', 'info');
+
+        var fd = new FormData();
+        fd.append('password', pw);
+        fd.append('action', 'preview');
+
+        fetch('/api/digest', {
+          method: 'POST',
+          body: fd
+        })
+        .then(function(res) { return res.json().then(function(data) { return { status: res.status, data: data }; }); })
+        .then(function(result) {
+          digestPreviewBtn.disabled = false;
+          digestPreviewBtn.textContent = 'Preview Digest';
+
+          if (result.status === 401) {
+            showStatus(digestStatus, 'Wrong password.', 'error');
+            return;
+          }
+          if (result.status !== 200) {
+            showStatus(digestStatus, 'Error: ' + (result.data.error || 'Unknown error'), 'error');
+            return;
+          }
+
+          var d = result.data;
+          if (d.htmlPreview) {
+            digestPreviewContent.innerHTML = d.htmlPreview;
+            digestPreviewContainer.style.display = 'block';
+            showStatus(digestStatus, 'Preview generated. ' + d.postCount + ' post(s) from this week.', 'success');
+          } else {
+            showStatus(digestStatus, 'Error: ' + (d.error || 'Unknown error'), 'error');
+          }
+        })
+        .catch(function(err) {
+          digestPreviewBtn.disabled = false;
+          digestPreviewBtn.textContent = 'Preview Digest';
+          showStatus(digestStatus, 'Network error: ' + err.message, 'error');
+        });
+      });
+
+      digestSendBtn.addEventListener('click', function() {
+        var pw = storedPassword;
+        if (!pw) {
+          showStatus(digestStatus, 'Please enter your admin password above.', 'error');
+          return;
+        }
+        if (!confirm('Send the weekly digest to all email subscribers? This will create and send a Mailchimp campaign.')) return;
+
+        digestSendBtn.disabled = true;
+        digestSendBtn.textContent = 'Sending...';
+        showStatus(digestStatus, 'Creating and sending digest campaign...', 'info');
+
+        var fd = new FormData();
+        fd.append('password', pw);
+        fd.append('action', 'send');
+
+        fetch('/api/digest', {
+          method: 'POST',
+          body: fd
+        })
+        .then(function(res) { return res.json().then(function(data) { return { status: res.status, data: data }; }); })
+        .then(function(result) {
+          digestSendBtn.disabled = false;
+          digestSendBtn.textContent = 'Send Digest';
+
+          if (result.status === 401) {
+            showStatus(digestStatus, 'Wrong password.', 'error');
+            return;
+          }
+          if (result.status !== 200) {
+            showStatus(digestStatus, 'Error: ' + (result.data.error || 'Unknown error'), 'error');
+            return;
+          }
+
+          var d = result.data;
+          showStatus(digestStatus, 'Digest sent! Campaign ID: ' + d.campaignId + '. ' + d.postCount + ' post(s) included.', 'success');
+          digestPreviewContainer.style.display = 'none';
+        })
+        .catch(function(err) {
+          digestSendBtn.disabled = false;
+          digestSendBtn.textContent = 'Send Digest';
+          showStatus(digestStatus, 'Network error: ' + err.message, 'error');
         });
       });
 
