@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=8">
+  <link rel="stylesheet" href="/styles.css?v=9">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -143,12 +143,69 @@
       <div class="install-scroll">
         <div class="install-hero">
           <h2>The <strong>signal</strong>.<br>Not the noise.</h2>
-          <p>Three curated Bitcoin insights per day, delivered to your phone. I scroll crypto Twitter so you don't have to.</p>
+          <p>Three curated Bitcoin insights per day, delivered to your phone. Install for the full experience.</p>
         </div>
-        <div class="install-actions">
-          <button class="btn-primary" id="install-btn">Install the App</button>
-          <button class="btn-secondary" id="notify-btn">Enable Notifications</button>
+
+        <!-- Already installed -->
+        <div id="install-already" class="install-section" style="display:none;">
+          <div class="install-done-icon">✓</div>
+          <h3 class="install-done-title">You're all set!</h3>
+          <p class="install-done-text">A Bitcoin Consult is installed on your home screen.</p>
+          <button class="btn-secondary" id="notify-btn" style="margin-top:1rem;">Enable Notifications</button>
         </div>
+
+        <!-- Android install prompt -->
+        <div id="install-android" class="install-section" style="display:none;">
+          <button class="btn-primary" id="install-btn">Add to Home Screen</button>
+          <p class="install-note">Tap above and confirm in the popup to install.</p>
+          <div style="margin-top:1.5rem;">
+            <button class="btn-secondary" id="notify-btn-android">Enable Notifications</button>
+          </div>
+        </div>
+
+        <!-- iOS install guide -->
+        <div id="install-ios" class="install-section" style="display:none;">
+          <p class="install-ios-intro">Open this page in <strong>Safari</strong>, then follow these steps:</p>
+          <div class="install-steps">
+            <div class="install-step">
+              <div class="install-step-num">1</div>
+              <div class="install-step-body">
+                <div class="install-step-icon">⎙</div>
+                <div class="install-step-text">Tap the <strong>Share</strong> button at the bottom of Safari (the box with an arrow pointing up)</div>
+              </div>
+            </div>
+            <div class="install-step">
+              <div class="install-step-num">2</div>
+              <div class="install-step-body">
+                <div class="install-step-icon">⊞</div>
+                <div class="install-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div>
+              </div>
+            </div>
+            <div class="install-step">
+              <div class="install-step-num">3</div>
+              <div class="install-step-body">
+                <div class="install-step-icon">✓</div>
+                <div class="install-step-text">Tap <strong>"Add"</strong> in the top right corner</div>
+              </div>
+            </div>
+            <div class="install-step">
+              <div class="install-step-num">4</div>
+              <div class="install-step-body">
+                <div class="install-step-icon">🔔</div>
+                <div class="install-step-text">Open the app from your home screen, then come back here to <strong>Enable Notifications</strong></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn-secondary" id="notify-btn" style="margin-top:1.5rem;">Enable Notifications</button>
+          <p class="install-note">Notifications require the app to be installed from your home screen first.</p>
+        </div>
+
+        <!-- Fallback for desktop/unknown -->
+        <div id="install-fallback" class="install-section">
+          <button class="btn-primary" id="install-btn-fallback">Install the App</button>
+          <button class="btn-secondary" id="notify-btn-fallback" style="margin-top:0.75rem;">Enable Notifications</button>
+        </div>
+
       </div>
     </div>
 
@@ -342,54 +399,87 @@
     } catch(e) { console.log('Notify btn error:', e); }
 
     // ============================================================
-    // INSTALL BUTTON — fallback instructions for iOS / unsupported
+    // INSTALL VIEW — smart detection: standalone / iOS / Android
     // ============================================================
     try {
     (function() {
-      var installBtn = document.getElementById('install-btn');
-      if (!installBtn) return;
-
-      // On iOS (no beforeinstallprompt), show manual instructions
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      var isAndroid = /Android/.test(navigator.userAgent);
       var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
                          window.navigator.standalone === true;
-
-      if (isStandalone) {
-        installBtn.textContent = 'Installed \u2713';
-        installBtn.disabled = true;
-        return;
-      }
-
-      if (isIOS) {
-        installBtn.textContent = 'Add to Home Screen';
-        installBtn.addEventListener('click', function() {
-          alert('To install:\n\n1. Tap the Share button (box with arrow)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"');
-        });
-        return;
-      }
-
-      // Chrome/Edge — use beforeinstallprompt if available
       var deferredPrompt = null;
+
+      // Capture Android install prompt early
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         deferredPrompt = e;
       });
 
-      installBtn.addEventListener('click', function() {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then(function(result) {
-            deferredPrompt = null;
-            if (result.outcome === 'accepted') {
-              installBtn.textContent = 'Installed \u2713';
-              installBtn.disabled = true;
-            }
-          });
+      // Show the right section
+      function showInstallSection() {
+        document.getElementById('install-already').style.display = 'none';
+        document.getElementById('install-android').style.display = 'none';
+        document.getElementById('install-ios').style.display = 'none';
+        document.getElementById('install-fallback').style.display = 'none';
+
+        if (isStandalone) {
+          document.getElementById('install-already').style.display = 'block';
+        } else if (isIOS) {
+          document.getElementById('install-ios').style.display = 'block';
+        } else if (isAndroid || deferredPrompt) {
+          document.getElementById('install-android').style.display = 'block';
         } else {
-          // Fallback if prompt wasn't captured
-          alert('To install:\n\n1. Tap the menu (\u22ee) in Chrome\n2. Tap "Add to Home Screen" or "Install App"\n3. Confirm the install');
+          document.getElementById('install-fallback').style.display = 'block';
         }
-      });
+      }
+      showInstallSection();
+
+      // Android "Add to Home Screen" button
+      var androidInstallBtn = document.getElementById('install-btn');
+      if (androidInstallBtn) {
+        androidInstallBtn.addEventListener('click', function() {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(function(result) {
+              deferredPrompt = null;
+              if (result.outcome === 'accepted') {
+                androidInstallBtn.textContent = 'Installed \u2713';
+                androidInstallBtn.disabled = true;
+              }
+            });
+          }
+        });
+      }
+
+      // Fallback install button
+      var fallbackBtn = document.getElementById('install-btn-fallback');
+      if (fallbackBtn) {
+        fallbackBtn.addEventListener('click', function() {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+          } else {
+            // Show generic instructions
+            document.getElementById('install-fallback').style.display = 'none';
+            document.getElementById('install-ios').style.display = 'block';
+          }
+        });
+      }
+
+      // Wire all notify buttons to the same handler
+      var notifyButtons = document.querySelectorAll('#notify-btn, #notify-btn-android, #notify-btn-fallback');
+      for (var ni = 0; ni < notifyButtons.length; ni++) {
+        notifyButtons[ni].addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window._abcGetToken) {
+            window._abcGetToken();
+          } else {
+            setTimeout(function() {
+              if (window._abcGetToken) window._abcGetToken();
+            }, 2000);
+          }
+        });
+      }
     })();
     } catch(e) { console.log('Install btn error:', e); }
 
@@ -670,6 +760,9 @@
         openDayViewer(posts, dateKey, allReadIds, card);
       });
 
+      // Store reference for refreshing when Chain tab opens
+      _chainBannerRefs.push({ card: card, posts: posts, dateKey: dateKey, allReadIds: allReadIds });
+
       return card;
     }
 
@@ -912,6 +1005,10 @@
 
     // Global: today's post IDs so Feed read state can sync to Chain
     var todayPostIds = [];
+
+    // Global: chain banner card references for refreshing read state
+    // Each entry: { card, posts, dateKey, allReadIds }
+    var _chainBannerRefs = [];
 
     function loadPosts() {
       fetch('/api/posts')
@@ -1266,6 +1363,41 @@
     // ============================================================
     // BOTTOM NAV — use Array.prototype.slice for mobile compatibility
     // ============================================================
+    // Refresh chain banner visual states from current IDB chainRead
+    function refreshChainBanners() {
+      if (!_chainBannerRefs.length) return;
+      try {
+        var rq = indexedDB.open('abc_feed', 2);
+        rq.onsuccess = function(e) {
+          var db = e.target.result;
+          var tx = db.transaction('state', 'readonly');
+          var req = tx.objectStore('state').get('chainRead');
+          req.onsuccess = function() {
+            var chainIds = Array.isArray(req.result) ? req.result : [];
+            for (var i = 0; i < _chainBannerRefs.length; i++) {
+              var ref = _chainBannerRefs[i];
+              // Update the allReadIds array in-place so future clicks use latest state
+              for (var j = 0; j < chainIds.length; j++) {
+                if (ref.allReadIds.indexOf(chainIds[j]) < 0) ref.allReadIds.push(chainIds[j]);
+              }
+              // Check if all posts in this day are now read
+              var hasUnread = false;
+              for (var k = 0; k < ref.posts.length; k++) {
+                if (ref.allReadIds.indexOf(ref.posts[k].id) < 0) { hasUnread = true; break; }
+              }
+              // Update card visually
+              if (!hasUnread && ref.card.classList.contains('chain-unopened')) {
+                ref.card.classList.remove('chain-unopened');
+                ref.card.classList.add('chain-read');
+                var badge = ref.card.querySelector('.chain-unopened-badge');
+                if (badge) { badge.textContent = 'Read'; badge.className = 'chain-read-badge'; }
+              }
+            }
+          };
+        };
+      } catch(e) {}
+    }
+
     try {
     (function() {
       var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
@@ -1281,6 +1413,8 @@
             item.classList.add('active');
             var target = document.getElementById(targetId);
             if (target) target.classList.add('active');
+            // Refresh chain banners when switching to Chain tab
+            if (targetId === 'archive-view') refreshChainBanners();
           });
         })(navItems[i]);
       }
