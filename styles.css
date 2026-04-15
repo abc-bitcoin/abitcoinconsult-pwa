@@ -409,6 +409,23 @@ body {
   margin: 0;
 }
 
+.post-source-wrap {
+  padding: 0.4rem 0.75rem 0.2rem;
+}
+
+.post-source {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.post-source:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .caption-headline {
   font-size: 0.9rem;
   font-weight: 700;
