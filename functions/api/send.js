@@ -205,15 +205,45 @@ export async function onRequestPost(context) {
     }
 
     // --- 3. Fetch all FCM tokens from KV ---
-    // IMPORTANT: Filter out post_ keys — those are saved posts, not FCM tokens
+    // Filter out non-token keys (post_, email_, summary_)
     var kv = context.env.ABC_TOKENS;
     var tokenList = await kv.list();
-    var tokens = [];
+    var allTokens = [];
     for (var t = 0; t < tokenList.keys.length; t++) {
       var keyName = tokenList.keys[t].name;
-      if (keyName.indexOf('post_') !== 0) {
-        tokens.push(keyName);
+      if (keyName.indexOf('post_') === 0 ||
+          keyName.indexOf('email_') === 0 ||
+          keyName.indexOf('summary_') === 0) {
+        continue; // skip non-token entries
       }
+      allTokens.push(keyName);
+    }
+
+    // Deduplicate: read each token's registration data and keep only
+    // the most recently registered token per device (user-agent).
+    // This prevents sending 3 notifications to the same phone.
+    var tokensByDevice = {};
+    for (var td = 0; td < allTokens.length; td++) {
+      try {
+        var tokenData = await kv.get(allTokens[td], 'json');
+        var ua = (tokenData && tokenData.ua) ? tokenData.ua : 'unknown';
+        var reg = (tokenData && tokenData.registered) ? tokenData.registered : '1970-01-01';
+        // Use a short UA fingerprint as a device key (first 80 chars)
+        var deviceKey = ua.substring(0, 80);
+        if (!tokensByDevice[deviceKey] || reg > tokensByDevice[deviceKey].reg) {
+          tokensByDevice[deviceKey] = { token: allTokens[td], reg: reg };
+        }
+      } catch(e) {
+        // If we can't read the token data, still include it
+        tokensByDevice['fallback_' + td] = { token: allTokens[td], reg: '1970-01-01' };
+      }
+    }
+
+    // Build final deduplicated token list
+    var tokens = [];
+    var deviceKeys = Object.keys(tokensByDevice);
+    for (var dk = 0; dk < deviceKeys.length; dk++) {
+      tokens.push(tokensByDevice[deviceKeys[dk]].token);
     }
 
     if (tokens.length === 0) {
