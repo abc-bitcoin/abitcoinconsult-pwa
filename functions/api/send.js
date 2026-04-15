@@ -236,22 +236,18 @@ export async function onRequestPost(context) {
       allTokens.push(keyName);
     }
 
-    // Deduplicate: read each token's registration data and keep only
-    // the most recently registered token per device (user-agent).
-    // This prevents sending 3 notifications to the same phone.
+    // Deduplicate: keep only the most recently registered token per deviceId.
+    // Tokens without a deviceId get their own slot (legacy tokens).
     var tokensByDevice = {};
     for (var td = 0; td < allTokens.length; td++) {
       try {
         var tokenData = await kv.get(allTokens[td], 'json');
-        var ua = (tokenData && tokenData.ua) ? tokenData.ua : 'unknown';
         var reg = (tokenData && tokenData.registered) ? tokenData.registered : '1970-01-01';
-        // Use a short UA fingerprint as a device key (first 80 chars)
-        var deviceKey = ua.substring(0, 80);
-        if (!tokensByDevice[deviceKey] || reg > tokensByDevice[deviceKey].reg) {
-          tokensByDevice[deviceKey] = { token: allTokens[td], reg: reg };
+        var devId = (tokenData && tokenData.deviceId) ? tokenData.deviceId : ('legacy_' + td);
+        if (!tokensByDevice[devId] || reg > tokensByDevice[devId].reg) {
+          tokensByDevice[devId] = { token: allTokens[td], reg: reg };
         }
       } catch(e) {
-        // If we can't read the token data, still include it
         tokensByDevice['fallback_' + td] = { token: allTokens[td], reg: '1970-01-01' };
       }
     }
