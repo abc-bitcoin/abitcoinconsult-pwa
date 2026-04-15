@@ -8,10 +8,14 @@
 export async function onRequestPost(context) {
   try {
     var body = await context.request.json();
-    var password = body.password;
+    var password = (body.password || '').trim();
+    var adminPw = (context.env.ADMIN_PASSWORD || '').trim();
 
-    if (!password || password !== context.env.ADMIN_PASSWORD) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    if (!password || password !== adminPw) {
+      return new Response(JSON.stringify({
+        error: 'Unauthorized',
+        hint: 'Password length received: ' + password.length
+      }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
