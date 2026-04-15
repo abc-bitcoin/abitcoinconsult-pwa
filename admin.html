@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -493,14 +493,81 @@
       });
 
       function addHistoryItem(caption, sent, failed) {
-        var div = document.createElement('div');
-        div.className = 'history-item';
-        div.innerHTML = '<div class="time">' + new Date().toLocaleString() + '</div>' +
-          '<div class="caption">' + caption.substring(0, 120) + (caption.length > 120 ? '...' : '') + '</div>' +
-          '<div class="stats">Sent: ' + sent + (failed > 0 ? ' | Failed: ' + failed : '') + '</div>';
-        var history = document.getElementById('history');
-        history.insertBefore(div, history.firstChild);
+        // Refresh the full post list after sending
+        loadPosts();
       }
+
+      // --- Load & Display All Posts ---
+      function loadPosts() {
+        var history = document.getElementById('history');
+        history.innerHTML = '<div style="color:#666;font-size:0.8rem;">Loading posts...</div>';
+        fetch('/api/posts')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var posts = data.posts || [];
+            history.innerHTML = '';
+            if (posts.length === 0) {
+              history.innerHTML = '<div style="color:#666;font-size:0.8rem;">No posts yet.</div>';
+              return;
+            }
+            for (var i = 0; i < posts.length; i++) {
+              var p = posts[i];
+              var div = document.createElement('div');
+              div.className = 'history-item';
+              var ts = p.timestamp ? new Date(p.timestamp).toLocaleString() : 'Unknown time';
+              var cap = (p.caption || '').substring(0, 100);
+              if ((p.caption || '').length > 100) cap += '...';
+              var sentInfo = typeof p.sent === 'number' ? 'Sent: ' + p.sent : '';
+              div.innerHTML =
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                  '<div style="flex:1;">' +
+                    '<div class="time">' + ts + '</div>' +
+                    '<div class="caption">' + cap + '</div>' +
+                    (sentInfo ? '<div class="stats">' + sentInfo + '</div>' : '') +
+                  '</div>' +
+                  '<button class="del-btn" data-id="' + p.id + '" style="background:none;border:1px solid #333;color:#ef4444;font-size:0.65rem;padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;flex-shrink:0;margin-left:0.5rem;">Delete</button>' +
+                '</div>';
+              history.appendChild(div);
+            }
+            // Wire up delete buttons
+            var delBtns = history.querySelectorAll('.del-btn');
+            for (var d = 0; d < delBtns.length; d++) {
+              delBtns[d].addEventListener('click', function() {
+                var postId = this.getAttribute('data-id');
+                if (!confirm('Delete this post? This cannot be undone.')) return;
+                var btn = this;
+                btn.disabled = true;
+                btn.textContent = '...';
+                var fd = new FormData();
+                fd.append('password', storedPassword);
+                fd.append('action', 'deletepost');
+                fd.append('postId', postId);
+                fetch('/api/send', { method: 'POST', body: fd })
+                  .then(function(r) { return r.json(); })
+                  .then(function(d) {
+                    if (d.ok) {
+                      loadPosts(); // refresh list
+                    } else {
+                      btn.disabled = false;
+                      btn.textContent = 'Delete';
+                      alert('Error: ' + (d.error || 'Unknown'));
+                    }
+                  })
+                  .catch(function(err) {
+                    btn.disabled = false;
+                    btn.textContent = 'Delete';
+                    alert('Network error: ' + err.message);
+                  });
+              });
+            }
+          })
+          .catch(function(err) {
+            history.innerHTML = '<div style="color:#ef9a9a;font-size:0.8rem;">Failed to load: ' + err.message + '</div>';
+          });
+      }
+
+      // Load posts when admin section is shown
+      loadPosts();
     })();
   </script>
 </body>
