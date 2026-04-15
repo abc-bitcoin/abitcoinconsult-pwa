@@ -274,15 +274,11 @@
       var VAPID_KEY = 'BPWIcxJ_zXU6Tpz1lSN3ZJriX7H78g28XY4AHBFaNWUAyjF6nrR-_iHhItzO3bk5KJY2n4KpDAy_UVxyGUZp23E';
 
       function getAndSaveToken() {
-        var nb = document.getElementById('notify-btn');
-        if (nb) nb.textContent = 'Getting token...';
         navigator.serviceWorker.ready.then(function(swReg) {
           return messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
         }).then(function(token) {
             if (token) {
               console.log('FCM Token obtained:', token.substring(0, 20) + '...');
-              // Read old token from IDB first so we can delete it server-side
-              // This fixes duplicate notifications from multiple registrations
               try {
                 var req = indexedDB.open('abc_feed', 2);
                 req.onsuccess = function(e) {
@@ -291,38 +287,43 @@
                   var getReq = rtx.objectStore('state').get('fcm_token');
                   getReq.onsuccess = function() {
                     var oldToken = getReq.result || '';
-                    // Save new token to IDB
                     try {
                       var wtx = db.transaction('state', 'readwrite');
                       wtx.objectStore('state').put(token, 'fcm_token');
                     } catch(e2) {}
-                    // Send new token + old token to server for cleanup
                     fetch('/api/token', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ token: token, oldToken: oldToken })
                     }).then(function(res) {
                       if (res.ok) {
-                        console.log('Token saved, old token cleaned up');
+                        console.log('Token saved');
                         if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(true);
                       } else {
+                        console.log('Token save failed:', res.status);
                         if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
                       }
                     }).catch(function(err) {
                       console.log('Token save error:', err);
+                      if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
                     });
                   };
+                  req.onerror = function() {
+                    if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
+                  };
                 };
-              } catch(e) { console.log('IDB token error:', e); }
+              } catch(e) {
+                console.log('IDB error:', e);
+                if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
+              }
             } else {
               console.log('No FCM token returned');
-              if (nb) nb.textContent = 'Token unavailable';
+              if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
             }
           })
           .catch(function(err) {
             console.log('FCM token error:', err);
-            if (nb) nb.textContent = 'Token error — retry';
-            if (nb) nb.disabled = false;
+            if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
           });
       }
 
