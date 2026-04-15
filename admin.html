@@ -447,15 +447,29 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: storedPassword })
         })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
+        .then(function(r) {
+          var status = r.status;
+          return r.text().then(function(text) { return { status: status, text: text }; });
+        })
+        .then(function(result) {
           clearTokensBtn.disabled = false;
           clearTokensBtn.textContent = 'Clear All Subscriber Tokens';
-          if (d.ok) {
-            showStatus(clearTokensStatus, 'Done — deleted ' + d.deleted + ' token(s). Re-enable notifications on your phone now.', 'success');
-            document.getElementById('sub-count').textContent = 'Subscribers: 0';
-          } else {
-            showStatus(clearTokensStatus, 'Error: ' + (d.error || 'Unknown'), 'error');
+          if (result.status === 404) {
+            showStatus(clearTokensStatus, 'Endpoint not found — make sure cleartokens.js was created at functions/api/cleartokens.js on GitHub.', 'error');
+            return;
+          }
+          try {
+            var d = JSON.parse(result.text);
+            if (d.ok) {
+              showStatus(clearTokensStatus, 'Done — deleted ' + d.deleted + ' token(s). Re-enable notifications on your phone now.', 'success');
+              document.getElementById('sub-count').textContent = 'Subscribers: 0';
+            } else if (result.status === 401) {
+              showStatus(clearTokensStatus, 'Wrong password.', 'error');
+            } else {
+              showStatus(clearTokensStatus, 'Error: ' + (d.error || 'Unknown'), 'error');
+            }
+          } catch(pe) {
+            showStatus(clearTokensStatus, 'Parse error (HTTP ' + result.status + '). Check that the file exists on GitHub.', 'error');
           }
         })
         .catch(function(err) {
