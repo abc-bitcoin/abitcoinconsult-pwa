@@ -152,6 +152,7 @@ export async function onRequestPost(context) {
     var password = formData.get('password');
     var caption = formData.get('caption');
     var imageFile = formData.get('image');
+    var username = (formData.get('username') || '').trim();
 
     // --- 1. Verify admin password ---
     if (!password || password !== context.env.ADMIN_PASSWORD) {
@@ -201,6 +202,7 @@ export async function onRequestPost(context) {
       await kv.put('post_' + Date.now(), JSON.stringify({
         caption: caption,
         image: imageUrl,
+        username: username,
         timestamp: new Date().toISOString(),
         sent: 0,
         failed: 0
@@ -286,6 +288,7 @@ export async function onRequestPost(context) {
     await kv.put('post_' + Date.now(), JSON.stringify({
       caption: caption,
       image: imageUrl,
+      username: username,
       timestamp: new Date().toISOString(),
       sent: sent,
       failed: failed
