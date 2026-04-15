@@ -7,15 +7,42 @@
 
 export async function onRequestPost(context) {
   try {
-    // Accept FormData (same as send.js which is known to work)
-    var formData = await context.request.formData();
-    var password = (formData.get('password') || '').trim();
-    var adminPw = (context.env.ADMIN_PASSWORD || '').trim();
+    // Parse password from any format — JSON, FormData, or URL-encoded
+    var password = '';
+    try {
+      var ct = (context.request.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('json') >= 0) {
+        var body = await context.request.json();
+        password = (body.password || '').trim();
+      } else {
+        var formData = await context.request.formData();
+        password = (formData.get('password') || '').trim();
+      }
+    } catch(pe) {
+      // Last resort: try reading as text
+      try {
+        var txt = await context.request.text();
+        var match = txt.match(/password=([^&]*)/);
+        if (match) password = decodeURIComponent(match[1]).trim();
+      } catch(e2) {}
+    }
 
-    if (!password || password !== adminPw) {
+    var adminPw = context.env.ADMIN_PASSWORD;
+    var adminExists = typeof adminPw === 'string';
+    var adminLen = adminExists ? adminPw.length : -1;
+
+    if (!password || !adminExists || password !== adminPw) {
+      // Return debug info so we can figure out the mismatch
       return new Response(JSON.stringify({
         error: 'Unauthorized',
-        hint: 'Password length received: ' + password.length
+        debug: {
+          receivedLen: password.length,
+          storedLen: adminLen,
+          storedExists: adminExists,
+          match: password === adminPw,
+          receivedFirst2: password.substring(0, 2),
+          storedFirst2: adminExists ? adminPw.substring(0, 2) : 'N/A'
+        }
       }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
