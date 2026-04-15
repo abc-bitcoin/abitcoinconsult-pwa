@@ -1191,6 +1191,13 @@ body {
   background: var(--accent-soft);
 }
 
+.btn-secondary.notify-enabled {
+  background: rgba(247, 147, 26, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-size: 0.78rem;
+}
+
 .installed-msg {
   color: var(--green);
   font-weight: 600;
