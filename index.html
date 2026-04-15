@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=7">
+  <link rel="stylesheet" href="/styles.css?v=8">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
@@ -403,39 +403,45 @@
     }
 
     function cleanCaption(raw) {
-      // New format from generate.js: "headline\n\nanalysis"
-      // Old format (legacy posts): "Push: ...\n\nIn-app: ..."
+      // Handles all caption formats — old and new.
       // Returns { headline: "...", body: "..." }
 
       var text = (raw || '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^\s+|\s+$/g, '');
       if (!text) return { headline: '', body: '' };
 
-      // Strip any legacy label prefixes aggressively
-      text = text.replace(/^Push\s*notification[^:]*:\s*/i, '');
-      text = text.replace(/^Push:\s*/i, '');
+      // Use lowercase copy for case-insensitive searching only
+      var lower = text.toLowerCase();
 
-      // Check for legacy "In-app" section
+      // Find the "in-app" split point (case insensitive, handles all variants)
+      // e.g. "IN-APP (under 500 chars):", "In-app:", "In-App display", "In-app:"
       var inAppIdx = -1;
-      var inAppPatterns = ['In-app:', 'In-App:', 'In-app display', 'In-App display', 'In-app ('];
-      for (var p = 0; p < inAppPatterns.length; p++) {
-        var idx = text.indexOf(inAppPatterns[p]);
-        if (idx >= 0) { inAppIdx = idx; break; }
+      var inAppSearches = ['in-app', 'in app'];
+      for (var p = 0; p < inAppSearches.length; p++) {
+        var si = lower.indexOf(inAppSearches[p]);
+        if (si >= 0) { inAppIdx = si; break; }
       }
 
       var headline = '';
       var body = '';
 
       if (inAppIdx >= 0) {
-        // Legacy format — split at In-app marker
         headline = text.substring(0, inAppIdx).replace(/^\s+|\s+$/g, '');
-        body = text.substring(inAppIdx).replace(/^In-app[^:]*:\s*/i, '').replace(/^\s+|\s+$/g, '');
-        body = body.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
+        body = text.substring(inAppIdx).replace(/^\s+|\s+$/g, '');
+        // Strip the "IN-APP ..." label at the start of body (up to and including the colon)
+        body = body.replace(/^in-app[^:]*:\s*/i, '');
+        body = body.replace(/^\s+|\s+$/g, '');
       } else {
-        // New clean format: first paragraph = headline, rest = body
+        // New clean format: two paragraphs separated by blank line
         var parts = text.split(/\n\n+/);
         headline = (parts[0] || '').replace(/^\s+|\s+$/g, '');
         body = parts.slice(1).join('\n\n').replace(/^\s+|\s+$/g, '');
       }
+
+      // Strip any "PUSH ..." or "Push notification..." prefix from headline (case insensitive)
+      headline = headline.replace(/^push\s*(notification)?[^:]*:\s*/i, '').replace(/^\s+|\s+$/g, '');
+      // Strip any residual "(under NNN chars)" anywhere
+      headline = headline.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
+      body = body.replace(/\(under \d+ chars?\)[:\s]*/gi, '').replace(/^\s+|\s+$/g, '');
 
       return { headline: headline, body: body };
     }
