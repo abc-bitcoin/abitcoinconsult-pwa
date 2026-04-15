@@ -150,6 +150,7 @@ export async function onRequestPost(context) {
   try {
     var formData = await context.request.formData();
     var password = formData.get('password');
+    var action = formData.get('action') || '';
     var caption = formData.get('caption');
     var imageFile = formData.get('image');
     var username = (formData.get('username') || '').trim();
@@ -158,6 +159,24 @@ export async function onRequestPost(context) {
     if (!password || password !== context.env.ADMIN_PASSWORD) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // --- CLEAR TOKENS action ---
+    if (action === 'cleartokens') {
+      var kv2 = context.env.ABC_TOKENS;
+      var list2 = await kv2.list();
+      var deleted = 0;
+      for (var d = 0; d < list2.keys.length; d++) {
+        var k = list2.keys[d].name;
+        if (k.indexOf('post_') !== 0 && k.indexOf('email_') !== 0 && k.indexOf('summary_') !== 0) {
+          await kv2.delete(k);
+          deleted++;
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, deleted: deleted }), {
+        status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     }
