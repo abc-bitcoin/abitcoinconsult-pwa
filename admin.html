@@ -471,7 +471,8 @@
               showStatus(clearTokensStatus, 'Done — deleted ' + d.deleted + ' token(s). Re-enable notifications on your phone now.', 'success');
               document.getElementById('sub-count').textContent = 'Subscribers: 0';
             } else if (result.status === 401) {
-              showStatus(clearTokensStatus, 'Wrong password.', 'error');
+              var hint = d.hint ? ' (' + d.hint + ')' : '';
+              showStatus(clearTokensStatus, 'Wrong password' + hint + '. Check your Cloudflare ADMIN_PASSWORD secret.', 'error');
             } else {
               showStatus(clearTokensStatus, 'Error: ' + (d.error || 'Unknown'), 'error');
             }
