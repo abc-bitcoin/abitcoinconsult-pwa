@@ -50,17 +50,22 @@ export async function onRequestPost(context) {
 
     var apiKey = context.env.ANTHROPIC_API_KEY;
 
-    var systemPrompt = `You are the voice of "A Bitcoin Consult" — a curated Bitcoin insights feed.
-Your job is to write a short, punchy caption (2-3 sentences max) that adds context to a Bitcoin/crypto tweet.
-Your tone is: informed but accessible, slightly irreverent, no hype or shilling.
-You explain WHY this tweet matters, not just what it says.
-Never use hashtags or emojis. Keep it under 200 characters for the push notification preview,
-but include a slightly longer version (under 500 chars) for the in-app display.
-Return ONLY the caption text, nothing else.`;
+    var systemPrompt = `You are the analyst for "A Bitcoin Consult" — a curated Bitcoin insights feed.
+Given a tweet screenshot, return a JSON object with exactly these fields:
+
+{
+  "headline": "One punchy sentence under 160 chars — the key insight. No labels, no prefixes. This is the push notification text.",
+  "analysis": "2-3 sentences of deeper context explaining WHY this matters. Under 450 chars. No hashtags, no emojis.",
+  "username": "@handle from the tweet (just the @handle, e.g. '@PunterJeff'). If you cannot read it clearly, return empty string."
+}
+
+Rules:
+- No markdown, no bold markers, no labels like 'Push:' or 'In-app:' anywhere
+- Tone: informed, accessible, slightly irreverent — never hype or shill
+- Return ONLY valid JSON, nothing else`;
 
     var userContent = [];
 
-    // Always include the image
     userContent.push({
       type: 'image',
       source: {
@@ -70,15 +75,11 @@ Return ONLY the caption text, nothing else.`;
       }
     });
 
-    // Add text prompt
-    var textPrompt = 'Write a caption for this tweet screenshot.';
+    var textPrompt = 'Analyze this tweet screenshot and return the JSON.';
     if (tweetText && tweetText.length > 4) {
-      textPrompt = 'Write a caption for this tweet screenshot. The tweet text reads: ' + tweetText;
+      textPrompt = 'Analyze this tweet screenshot. The tweet text reads: "' + tweetText + '". Return the JSON.';
     }
-    userContent.push({
-      type: 'text',
-      text: textPrompt
-    });
+    userContent.push({ type: 'text', text: textPrompt });
 
     var response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -89,19 +90,37 @@ Return ONLY the caption text, nothing else.`;
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 300,
+        max_tokens: 400,
         system: systemPrompt,
-        messages: [{
-          role: 'user',
-          content: userContent
-        }]
+        messages: [{ role: 'user', content: userContent }]
       })
     });
 
     var result = await response.json();
 
     if (result.content && result.content[0] && result.content[0].text) {
-      return new Response(JSON.stringify({ caption: result.content[0].text.trim() }), {
+      var raw = result.content[0].text.trim();
+      // Parse the JSON response
+      var parsed = {};
+      try {
+        // Strip any markdown code fences if Claude wrapped it
+        var jsonStr = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+        parsed = JSON.parse(jsonStr);
+      } catch(e) {
+        // Fallback: treat the whole thing as a plain caption
+        parsed = { headline: raw.substring(0, 160), analysis: '', username: '' };
+      }
+      // Build the caption string stored in KV: "headline\n\nanalysis"
+      var caption = (parsed.headline || '').trim();
+      if (parsed.analysis && parsed.analysis.trim()) {
+        caption += '\n\n' + parsed.analysis.trim();
+      }
+      return new Response(JSON.stringify({
+        caption: caption,
+        headline: parsed.headline || '',
+        analysis: parsed.analysis || '',
+        username: parsed.username || ''
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
