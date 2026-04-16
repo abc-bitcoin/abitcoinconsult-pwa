@@ -26,6 +26,12 @@
     <!-- HEADER -->
     <header class="header">
       <div class="logo">A Bitcoin <span>Consult</span></div>
+      <button class="refresh-btn" id="refresh-btn" title="Check for new posts">
+        <svg class="refresh-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
       <div class="network-status"><div class="pulse-dot"></div><span>Live</span></div>
     </header>
 
@@ -273,93 +279,57 @@
 
       var VAPID_KEY = 'BPWIcxJ_zXU6Tpz1lSN3ZJriX7H78g28XY4AHBFaNWUAyjF6nrR-_iHhItzO3bk5KJY2n4KpDAy_UVxyGUZp23E';
 
-      // Generate or retrieve a persistent device ID for deduplication
-      function getDeviceId(cb) {
-        try {
-          var req = indexedDB.open('abc_feed', 2);
-          req.onupgradeneeded = function(e) {
-            var db = e.target.result;
-            if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
-          };
-          req.onsuccess = function(e) {
-            var db = e.target.result;
-            var tx = db.transaction('state', 'readonly');
-            var gr = tx.objectStore('state').get('device_id');
-            gr.onsuccess = function() {
-              if (gr.result) { cb(gr.result, db); return; }
-              // Generate new device ID
-              var id = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
-              var wtx = db.transaction('state', 'readwrite');
-              wtx.objectStore('state').put(id, 'device_id');
-              wtx.oncomplete = function() { cb(id, db); };
-              wtx.onerror = function() { cb(id, db); };
-            };
-            gr.onerror = function() { cb('unknown', db); };
-          };
-          req.onerror = function() { cb('unknown', null); };
-        } catch(e) { cb('unknown', null); }
-      }
-
       function getAndSaveToken() {
-        // Step 1: Get FCM token from Firebase
+        var nb = document.getElementById('notify-btn');
+        if (nb) nb.textContent = 'Getting token...';
         navigator.serviceWorker.ready.then(function(swReg) {
           return messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
         }).then(function(token) {
-          if (!token) {
-            console.log('No FCM token returned');
-            if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-            return;
-          }
-          console.log('FCM Token obtained:', token.substring(0, 20) + '...');
-
-          // Step 2: Get device ID and old token from IDB
-          getDeviceId(function(deviceId, db) {
-            var oldToken = '';
-            if (db) {
+            if (token) {
+              console.log('FCM Token obtained:', token.substring(0, 20) + '...');
+              // Read old token from IDB first so we can delete it server-side
+              // This fixes duplicate notifications from multiple registrations
               try {
-                var tx = db.transaction('state', 'readonly');
-                var gr = tx.objectStore('state').get('fcm_token');
-                gr.onsuccess = function() {
-                  oldToken = gr.result || '';
-                  saveToken(token, oldToken, deviceId, db);
+                var req = indexedDB.open('abc_feed', 2);
+                req.onsuccess = function(e) {
+                  var db = e.target.result;
+                  var rtx = db.transaction('state', 'readonly');
+                  var getReq = rtx.objectStore('state').get('fcm_token');
+                  getReq.onsuccess = function() {
+                    var oldToken = getReq.result || '';
+                    // Save new token to IDB
+                    try {
+                      var wtx = db.transaction('state', 'readwrite');
+                      wtx.objectStore('state').put(token, 'fcm_token');
+                    } catch(e2) {}
+                    // Send new token + old token to server for cleanup
+                    fetch('/api/token', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: token, oldToken: oldToken })
+                    }).then(function(res) {
+                      if (res.ok) {
+                        console.log('Token saved, old token cleaned up');
+                        if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(true);
+                      } else {
+                        if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
+                      }
+                    }).catch(function(err) {
+                      console.log('Token save error:', err);
+                    });
+                  };
                 };
-                gr.onerror = function() { saveToken(token, '', deviceId, db); };
-              } catch(e) { saveToken(token, '', deviceId, db); }
+              } catch(e) { console.log('IDB token error:', e); }
             } else {
-              saveToken(token, '', deviceId, null);
+              console.log('No FCM token returned');
+              if (nb) nb.textContent = 'Token unavailable';
             }
+          })
+          .catch(function(err) {
+            console.log('FCM token error:', err);
+            if (nb) nb.textContent = 'Token error — retry';
+            if (nb) nb.disabled = false;
           });
-
-          function saveToken(token, oldToken, deviceId, db) {
-            // Save new token to IDB
-            if (db) {
-              try {
-                var wtx = db.transaction('state', 'readwrite');
-                wtx.objectStore('state').put(token, 'fcm_token');
-              } catch(e) {}
-            }
-            // Step 3: Send token + deviceId to server
-            fetch('/api/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: token, oldToken: oldToken, deviceId: deviceId })
-            }).then(function(res) {
-              if (res.ok) {
-                console.log('Token saved with deviceId:', deviceId);
-                if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(true);
-              } else {
-                console.log('Token save failed:', res.status);
-                if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-              }
-            }).catch(function(err) {
-              console.log('Token save error:', err);
-              if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-            });
-          }
-        }).catch(function(err) {
-          console.log('FCM token error:', err);
-          if (window._abcSetNotifyEnabled) window._abcSetNotifyEnabled(false);
-        });
       }
 
       messaging.onMessage(function(payload) {
@@ -369,6 +339,10 @@
         var body = data.body || 'New transaction posted';
         if (Notification.permission === 'granted') {
           new Notification(title, { body: body, icon: '/icons/icon-192.png' });
+        }
+        // Auto-refresh feed when a push arrives while app is open
+        if (typeof refreshPosts === 'function') {
+          refreshPosts();
         }
       });
 
@@ -407,6 +381,17 @@
 
       // Expose getAndSaveToken so the notification handler outside can call it
       window._abcGetToken = getAndSaveToken;
+
+      // Re-register token on every app open if permission already granted.
+      // This ensures the server always has the latest FCM token, even if
+      // Google silently refreshed it since the last visit.
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          navigator.serviceWorker.ready.then(function() {
+            getAndSaveToken();
+          });
+        } catch(e) { console.log('Auto token refresh error:', e); }
+      }
     })();
     } catch(e) { console.log('Firebase error:', e); }
 
@@ -485,13 +470,6 @@
                 if (window._abcGetToken) window._abcGetToken();
               }, 2000);
             }
-            // Timeout fallback: if still "Enabling..." after 8 seconds, reset
-            setTimeout(function() {
-              var btn = document.querySelector('.js-notify-btn');
-              if (btn && btn.textContent.indexOf('Enabling') >= 0) {
-                setAllBtns('Tap to Retry', false, false);
-              }
-            }, 8000);
           } else if (perm === 'denied') {
             setAllBtns('Blocked — enable in Settings', true, false);
           } else {
@@ -1201,20 +1179,70 @@
 
       // Highlight weekday indicators for days that have posts
       var dayEls = document.querySelectorAll('.block-day');
-      // Figure out which days of the week have posts
-      var activeDays = {};
+      // Figure out which days of the week have posts + map day number → dateKey
+      var activeDays = {};    // dayNum → true
+      var dayDateKeys = {};   // dayNum → dateKey
       for (var di = 0; di < grouped.order.length; di++) {
         var dk = grouped.order[di];
         var dd = new Date(dk + 'T12:00:00');
-        activeDays[dd.getDay()] = true; // 0=Sun, 1=Mon, etc.
+        activeDays[dd.getDay()] = true;
+        dayDateKeys[dd.getDay()] = dk;
       }
+
       for (var dj = 0; dj < dayEls.length; dj++) {
         var dayNum = parseInt(dayEls[dj].getAttribute('data-day'), 10);
+        // Reset classes
+        dayEls[dj].classList.remove('block-day-active', 'block-day-viewed', 'block-day-today');
+
         if (activeDays[dayNum]) {
-          dayEls[dj].classList.add('block-day-active');
+          // Check if all posts for this day have been read
+          var dayKey = dayDateKeys[dayNum];
+          var dayPosts = grouped.groups[dayKey] || [];
+          var allRead = true;
+          for (var dp = 0; dp < dayPosts.length; dp++) {
+            if (chainReadIds.indexOf(dayPosts[dp].id) < 0) { allRead = false; break; }
+          }
+
+          if (allRead && dayPosts.length > 0) {
+            dayEls[dj].classList.add('block-day-viewed'); // dull orange
+          } else {
+            dayEls[dj].classList.add('block-day-active'); // bright orange
+          }
+
+          // Make circle clickable — open that day's posts
+          dayEls[dj].style.cursor = 'pointer';
+          dayEls[dj].setAttribute('data-datekey', dayKey);
+          (function(el, dateKey, posts, readIds) {
+            // Remove old listener by cloning
+            var newEl = el.cloneNode(true);
+            el.parentNode.replaceChild(newEl, el);
+            newEl.addEventListener('click', function() {
+              // Find the matching banner card ref
+              var bannerCard = null;
+              for (var br = 0; br < _chainBannerRefs.length; br++) {
+                if (_chainBannerRefs[br].dateKey === dateKey) {
+                  bannerCard = _chainBannerRefs[br].card;
+                  break;
+                }
+              }
+              // Switch to Chain tab first
+              var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
+              var views = Array.prototype.slice.call(document.querySelectorAll('.view'));
+              for (var ni = 0; ni < navItems.length; ni++) { navItems[ni].classList.remove('active'); }
+              for (var vi = 0; vi < views.length; vi++) { views[vi].classList.remove('active'); }
+              var chainNav = document.querySelector('[data-view="archive-view"]');
+              if (chainNav) chainNav.classList.add('active');
+              var archiveView = document.getElementById('archive-view');
+              if (archiveView) archiveView.classList.add('active');
+              // Open day viewer
+              openDayViewer(posts, dateKey, readIds, bannerCard);
+            });
+          })(dayEls[dj], dayKey, dayPosts, chainReadIds);
         } else {
-          dayEls[dj].classList.remove('block-day-active');
+          dayEls[dj].style.cursor = 'default';
+          dayEls[dj].removeAttribute('data-datekey');
         }
+
         // Highlight today
         if (dayNum === new Date().getDay()) {
           dayEls[dj].classList.add('block-day-today');
@@ -1455,6 +1483,92 @@
       });
     }
 
+    // ============================================================
+    // REFRESH BUTTON — re-fetch posts and rebuild feed + chain
+    // ============================================================
+    function refreshPosts() {
+      var btn = document.getElementById('refresh-btn');
+      if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+
+      fetch('/api/posts')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var posts = data.posts || [];
+          posts.reverse(); // oldest first
+
+          var today = todayKey();
+          var grouped = groupByDay(posts);
+
+          // --- Rebuild FEED with today's posts ---
+          var track = document.getElementById('feed-track');
+          var caughtUpSlide = document.getElementById('caught-up-slide');
+          // Remove old post slides (keep caught-up)
+          var oldSlides = Array.prototype.slice.call(track.querySelectorAll('.post-slide:not(.caught-up-slide)'));
+          for (var i = 0; i < oldSlides.length; i++) { track.removeChild(oldSlides[i]); }
+
+          var todayPosts = grouped.groups[today] || [];
+          todayPostIds = [];
+          for (var j = 0; j < todayPosts.length; j++) {
+            todayPostIds.push(todayPosts[j].id);
+            var slide = createPostSlide(todayPosts[j], j + 1);
+            track.insertBefore(slide, caughtUpSlide);
+          }
+
+          if (todayPosts.length === 0) {
+            var cTitle = caughtUpSlide.querySelector('.caught-up-title');
+            if (cTitle) cTitle.textContent = 'No new posts yet today';
+            var cText = caughtUpSlide.querySelector('.caught-up-text');
+            if (cText) cText.textContent = 'Check back soon — three curated Bitcoin insights are posted daily. Swipe left to see past posts in The Chain.';
+          } else {
+            var cTitle2 = caughtUpSlide.querySelector('.caught-up-title');
+            if (cTitle2) cTitle2.textContent = "You're all caught up";
+            var cText2 = caughtUpSlide.querySelector('.caught-up-text');
+            if (cText2) cText2.textContent = 'Three curated Bitcoin insights per day, delivered to your phone. Each post is a transaction. Each week is a block. New posts will appear to the right.';
+          }
+
+          updateStatusBar(posts.length);
+
+          // --- Rebuild CHAIN ---
+          _chainBannerRefs = [];
+          var chainReadIds = [];
+          try {
+            var rq = indexedDB.open('abc_feed', 2);
+            rq.onsuccess = function(e) {
+              var db = e.target.result;
+              try {
+                var tx = db.transaction('state', 'readonly');
+                var req = tx.objectStore('state').get('chainRead');
+                req.onsuccess = function() {
+                  if (Array.isArray(req.result)) chainReadIds = req.result;
+                  buildChain(grouped, posts.length, chainReadIds);
+                };
+                req.onerror = function() { buildChain(grouped, posts.length, chainReadIds); };
+              } catch(e2) { buildChain(grouped, posts.length, chainReadIds); }
+            };
+            rq.onerror = function() { buildChain(grouped, posts.length, chainReadIds); };
+          } catch(e3) { buildChain(grouped, posts.length, chainReadIds); }
+
+          // Re-init feed swipe
+          initFeed();
+        })
+        .catch(function(err) { console.log('Refresh failed:', err); })
+        .finally(function() {
+          if (btn) {
+            setTimeout(function() { btn.classList.remove('spinning'); btn.disabled = false; }, 800);
+          }
+        });
+    }
+
+    try {
+      var refreshBtn = document.getElementById('refresh-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          refreshPosts();
+        });
+      }
+    } catch(e) { console.log('Refresh btn error:', e); }
+
     // Kick off: load posts from server, then init feed
     try { loadPosts(); } catch(e) { console.log('loadPosts error:', e); initFeed(); }
 
@@ -1489,6 +1603,30 @@
                 ref.card.classList.add('chain-read');
                 var badge = ref.card.querySelector('.chain-unopened-badge');
                 if (badge) { badge.textContent = 'Read'; badge.className = 'chain-read-badge'; }
+              }
+            }
+
+            // Also update day-of-week circle states
+            var dayEls = document.querySelectorAll('.block-day');
+            for (var de = 0; de < dayEls.length; de++) {
+              var dk = dayEls[de].getAttribute('data-datekey');
+              if (!dk) continue;
+              // Find matching banner ref to check read state
+              for (var br = 0; br < _chainBannerRefs.length; br++) {
+                if (_chainBannerRefs[br].dateKey === dk) {
+                  var bRef = _chainBannerRefs[br];
+                  var dayAllRead = true;
+                  for (var bp = 0; bp < bRef.posts.length; bp++) {
+                    if (bRef.allReadIds.indexOf(bRef.posts[bp].id) < 0) { dayAllRead = false; break; }
+                  }
+                  dayEls[de].classList.remove('block-day-active', 'block-day-viewed');
+                  if (dayAllRead) {
+                    dayEls[de].classList.add('block-day-viewed');
+                  } else {
+                    dayEls[de].classList.add('block-day-active');
+                  }
+                  break;
+                }
               }
             }
           };
