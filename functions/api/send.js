@@ -156,8 +156,10 @@ export async function onRequestPost(context) {
     var username = (formData.get('username') || '').trim();
 
     // --- 1. Verify admin password ---
-    if (!password || password !== context.env.ADMIN_PASSWORD) {
-      return new Response(JSON.stringify({ error: 'Unauthorized', hasEnvVar: typeof context.env.ADMIN_PASSWORD !== 'undefined' }), {
+    var adminPw = String(context.env.ADMIN_PASSWORD || '').trim();
+    var inputPw = String(password || '').trim();
+    if (!inputPw || inputPw !== adminPw) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
