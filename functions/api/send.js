@@ -157,7 +157,7 @@ export async function onRequestPost(context) {
 
     // --- 1. Verify admin password ---
     if (!password || password !== context.env.ADMIN_PASSWORD) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ error: 'Unauthorized', hasEnvVar: typeof context.env.ADMIN_PASSWORD !== 'undefined' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
