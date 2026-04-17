@@ -6,3 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [[kv_namespaces]]
 binding = "ABC_TOKENS"
 id = "e85a9af5a53e452bb4ced5e72812528a"
+
+[[r2_buckets]]
+binding = "ABC_IMAGES"
+bucket_name = "abc-images"
