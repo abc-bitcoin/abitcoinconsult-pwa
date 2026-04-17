@@ -11,7 +11,7 @@
 //   3. Send captions to Claude to generate a cohesive weekly summary
 //   4. Format summary as beautiful HTML email
 //   5. Create Mailchimp campaign and send it
-//   6. Also send to KV email subscribers that aren't in Mailchimp
+//   6. Also send to KV email subscribers that aren't in Mailhimp
 //
 // Bindings needed:
 //   - ABC_TOKENS (KV namespace for posts and email subscribers)
@@ -49,7 +49,7 @@ function getDataCenterFromKey(apiKey) {
 
 // Helper to add to Mailchimp audience
 async function addToMailchimp(email, apiKey, audienceId) {
-  var crypto = require('crypto');
+  var crypto = require('node:crypto');
   var emailHash = crypto.createHash('md5').update(email.toLowerCase()).digest('hex');
   var dc = getDataCenterFromKey(apiKey);
   var url = 'https://' + dc + '.api.mailchimp.com/3.0/lists/' + audienceId + '/members/' + emailHash;
